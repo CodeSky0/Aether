@@ -1,31 +1,42 @@
-# dependencies
-node_modules/
-
-# builds
-.turbo/
-dist/
-.next/
-out/
-build/
-*.tsbuildinfo
-
-# env & secrets
-.env
-.env.local
-.env.*.local
-.netrc
-
-# logs & caches
+```
+# Logs and temp files
 *.log
-.DS_Store
-.npm/
-.eslintcache
-.pnpm-store/
-
-# editors
-.idea/
-.vscode/
+*.tmp
 *.swp
 
-# misc
-.monkeycode-tmp-files/
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+dist/
+build/
+target/
+.gradle/
+
+# Compiled files
+*.pyc
+*.class
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# System files
+.DS_Store
+Thumbs.db
+```
