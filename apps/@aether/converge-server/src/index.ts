@@ -10,6 +10,7 @@
 //   PORT              - 监听端口（默认 1234）
 //   DATABASE_URL      - Postgres 连接 URL（必需）
 //   REDIS_URL         - Redis 连接 URL（可选，多实例广播）
+import type { Extension } from '@hocuspocus/server'
 import { Hocuspocus } from '@hocuspocus/server'
 import { getDb } from './db.js'
 import { AetherDatabaseExtension } from './extensions/database.js'
@@ -18,7 +19,7 @@ const PORT = parseInt(process.env.PORT ?? '1234', 10)
 const REDIS_URL = process.env.REDIS_URL
 async function main() {
   const db = getDb()
-  const extensions = []
+  const extensions: Extension[] = []
   // Database extension: 接入 @aether/db crdt_updates 表
   extensions.push(new AetherDatabaseExtension({ db }))
   // Redis extension: 多实例广播 seam（可选）
@@ -26,7 +27,9 @@ async function main() {
   // 由 main().catch() 捕获并退出，避免静默降级为单实例模式。
   if (REDIS_URL) {
     const redisExt = await createRedisExtension({ redisUrl: REDIS_URL })
-    extensions.push(redisExt)
+    if (redisExt) {
+      extensions.push(redisExt)
+    }
     // eslint-disable-next-line no-console
     console.log('[converge-server] Redis extension enabled for multi-instance broadcast.')
   }
