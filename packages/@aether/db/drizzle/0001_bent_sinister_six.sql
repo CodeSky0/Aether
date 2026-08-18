@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "members_realm_actor_uniq" ON "members" USING btree ("realm_id","actor_type","actor_id") WHERE "members"."project_id" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "members_project_actor_uniq" ON "members" USING btree ("realm_id","project_id","actor_type","actor_id") WHERE "members"."project_id" IS NOT NULL;

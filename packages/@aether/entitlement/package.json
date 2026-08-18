@@ -1,0 +1,47 @@
+{
+  "name": "@aether/entitlement",
+  "version": "0.0.1",
+  "description": "Aether Entitlement Engine：角色、作用域与资源三级授权判定。",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./evaluate": {
+      "types": "./dist/evaluate.d.ts",
+      "import": "./dist/evaluate.js"
+    },
+    "./loader": {
+      "types": "./dist/loader.d.ts",
+      "import": "./dist/loader.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@aether/auth": "workspace:*",
+    "@aether/db": "workspace:*",
+    "@aether/types": "workspace:*",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@aether/config": "workspace:*",
+    "@types/node": "^26.2.0",
+    "eslint": "^9.39.5",
+    "typescript": "^6.0.0",
+    "vitest": "^3.2.4"
+  }
+}

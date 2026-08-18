@@ -2,8 +2,12 @@
 'use server'
 
 import { getDb } from '@/lib/db'
-import { realms } from '@aether/db'
+import { members, realms } from '@aether/db'
 import { desc } from 'drizzle-orm'
+import { createRealmOrganization } from '@aether/auth'
+import { tryGetAuth } from '@/lib/auth'
+import { resolveCurrentActor } from '@/lib/auth-guard'
+import { recordPermissionChange } from '@/lib/audit-write'
 
 export interface RealmRow {
   id: string
@@ -31,11 +35,59 @@ export interface CreateRealmInput {
 
 /**
  * 创建新 Realm。
- * auth_org_id / schema_namespace / residency 使用占位值；
- * 接入 Better-Auth organization 后替换为真实值。
+ * 已配置认证且存在会话时绑定真实 organization 并开通 owner；
+ * 其他情况保留占位 organization，兼容未配置认证的开发环境。
  */
-export async function createRealm(input: CreateRealmInput): Promise<{ id: string; slug: string; name: string }> {
+export async function createRealm(
+  input: CreateRealmInput,
+): Promise<{ id: string; slug: string; name: string }> {
   const db = getDb()
+  const auth = tryGetAuth()
+  const actor = auth === null ? null : await resolveCurrentActor()
+
+  if (auth !== null && actor !== null) {
+    const organization = await createRealmOrganization(auth, {
+      name: input.name,
+      slug: input.slug,
+      ownerUserId: actor.actorId,
+    })
+    return db.transaction(async (tx) => {
+      const [realm] = await tx
+        .insert(realms)
+        .values({
+          slug: input.slug,
+          name: input.name,
+          auth_org_id: organization.id,
+          schema_namespace: `ns_${input.slug}`,
+          residency: 'vercel',
+        })
+        .returning({ id: realms.id, slug: realms.slug, name: realms.name })
+      if (!realm) throw new Error('Failed to create realm')
+
+      await tx.insert(members).values({
+        realm_id: realm.id,
+        project_id: null,
+        actor_type: actor.actorType,
+        actor_id: actor.actorId,
+        role: 'owner',
+        entitlements: {},
+        status: 'active',
+      })
+      await recordPermissionChange(tx, {
+        realmId: realm.id,
+        actor,
+        target: {
+          kind: 'realm_membership',
+          role: 'owner',
+          actor_id: actor.actorId,
+        },
+        idempotencyKey: `realm-owner:${realm.id}:${actor.actorId}`,
+        result: { status: 'active' },
+      })
+      return realm
+    })
+  }
+
   const [realm] = await db
     .insert(realms)
     .values({

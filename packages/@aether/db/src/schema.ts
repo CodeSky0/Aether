@@ -14,6 +14,7 @@ import {
   bigserial,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 // bytea：drizzle 0.45 的 pg-core 未内置二进制列，用 customType 声明。
 // data 侧为 Uint8Array（与 yjs 增量字节序一致），driver 侧交给连接驱动编码。
 const bytea = customType<{
@@ -113,7 +114,8 @@ export const members = pgTable(
       .references(() => realms.id),
     project_id: uuid('project_id').references(() => projects.id),
     actor_type: actorTypeEnum('actor_type').notNull(),
-    actor_id: uuid('actor_id').notNull(),
+    // actor_id 支持 Entity UUID 或 Better-Auth auth identity。
+    actor_id: text('actor_id').notNull(),
     role: text('role').notNull(),
     entitlements: jsonb('entitlements').notNull().default({}),
     status: memberStatusEnum('status').notNull().default('active'),
@@ -126,6 +128,12 @@ export const members = pgTable(
   },
   (t) => [
     index('members_actor_idx').on(t.realm_id, t.actor_type, t.actor_id),
+    uniqueIndex('members_realm_actor_uniq')
+      .on(t.realm_id, t.actor_type, t.actor_id)
+      .where(sql`${t.project_id} IS NULL`),
+    uniqueIndex('members_project_actor_uniq')
+      .on(t.realm_id, t.project_id, t.actor_type, t.actor_id)
+      .where(sql`${t.project_id} IS NOT NULL`),
     // 高频查询优化：按项目 + 角色筛选成员
     index('members_project_role_idx').on(t.project_id, t.role),
     // 按状态筛选成员

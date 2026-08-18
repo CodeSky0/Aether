@@ -208,6 +208,7 @@ describe('appendUpdate', () => {
     expect(events).toHaveLength(1)
     expect(events[0]!.seq).toBe(1)
     expect(events[0]!.actorType).toBe('entity')
+    expect(events[0]!.actorId).toBe('4e0f9c1a-0000-0000-0000-000000000002')
     expect(events[0]!.serializedPayload).toBe(serialized)
   })
 

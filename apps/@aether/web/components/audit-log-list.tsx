@@ -60,6 +60,12 @@ export default function AuditLogList({ realmId, initialLogs }: AuditLogListProps
   useEffect(() => {
     void fetchLogs({ actorType, action, limit: PAGE_SIZE, offset: 0, append: false })
   }, [actorType, action, fetchLogs])
+  const exportHref = (format: 'csv' | 'jsonl') => {
+    const params = new URLSearchParams({ format })
+    if (actorType) params.set('actorType', actorType)
+    if (action) params.set('action', action)
+    return `/api/realms/${realmId}/audit/export?${params.toString()}`
+  }
   const handleLoadMore = () => {
     void fetchLogs({ actorType, action, limit: PAGE_SIZE, offset, append: true })
   }
@@ -87,6 +93,21 @@ export default function AuditLogList({ realmId, initialLogs }: AuditLogListProps
         </select>
         <span className="ml-1 text-label-12 text-neutral-6">
           共 {logs.length} 条{hasMore ? '+' : ''}
+        </span>
+        {/* 导出沿用当前过滤条件；导出范围是筛选结果全量，不受已加载页数限制 */}
+        <span className="ml-auto flex items-center gap-2">
+          <a
+            href={exportHref('csv')}
+            className="btn-ghost px-3 py-1.5 text-label-12"
+          >
+            导出 CSV
+          </a>
+          <a
+            href={exportHref('jsonl')}
+            className="btn-ghost px-3 py-1.5 text-label-12"
+          >
+            导出 JSONL
+          </a>
         </span>
       </div>
       {/* 列表：hairline 台账 */}

@@ -138,6 +138,16 @@ export const invitation = pgTable(
   ],
 )
 
+export const betterAuthSchema = {
+  user,
+  session,
+  account,
+  verification,
+  organization,
+  member,
+  invitation,
+}
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),

@@ -121,12 +121,18 @@ importers:
 
   apps/@aether/web:
     dependencies:
+      '@aether/auth':
+        specifier: workspace:*
+        version: link:../../../packages/@aether/auth
       '@aether/current-sync':
         specifier: workspace:*
         version: link:../../../packages/@aether/current-sync
       '@aether/db':
         specifier: workspace:*
         version: link:../../../packages/@aether/db
+      '@aether/entitlement':
+        specifier: workspace:*
+        version: link:../../../packages/@aether/entitlement
       '@aether/state':
         specifier: workspace:*
         version: link:../../../packages/@aether/state
@@ -207,9 +213,18 @@ importers:
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
+      tsx:
+        specifier: ^4.20.5
+        version: 4.23.11
       typescript:
         specifier: ^6.0.0
         version: 6.0.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.33.0)(supports-color@7.2.0)(tsx@4.23.11)
 
   packages/@aether/config:
     dependencies:
@@ -278,6 +293,37 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
+      typescript:
+        specifier: ^6.0.0
+        version: 6.0.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.33.0)(supports-color@7.2.0)(tsx@4.23.11)
+
+  packages/@aether/entitlement:
+    dependencies:
+      '@aether/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@aether/db':
+        specifier: workspace:*
+        version: link:../db
+      '@aether/types':
+        specifier: workspace:*
+        version: link:../types
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(kysely@0.29.4)(postgres@3.4.9)
+    devDependencies:
+      '@aether/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: ^26.2.0
+        version: 26.2.0
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)

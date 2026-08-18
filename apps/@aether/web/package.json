@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@aether/current-sync": "workspace:*",
+    "@aether/auth": "workspace:*",
     "@aether/db": "workspace:*",
+    "@aether/entitlement": "workspace:*",
     "@aether/state": "workspace:*",
     "@aether/types": "workspace:*",
     "@aether/ui": "workspace:*",

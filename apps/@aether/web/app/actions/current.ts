@@ -5,28 +5,46 @@
 'use server'
 import { getDb } from '@/lib/db'
 import { getBroadcastPort } from '@/lib/current/broadcast'
-import { requireRealmAccess } from '@/lib/auth-guard'
+import {
+  requireEntitlement,
+  requireRealmAccess,
+  resolveCurrentActor,
+} from '@/lib/auth-guard'
 import {
   appendUpdate,
   getCursor,
   replayUpdates,
-  type AppendUpdateInput,
   type AppendUpdateResult,
   type ReplayResult,
 } from '@/lib/current/channel-service'
-export type { AppendUpdateInput, AppendUpdateResult, ReplayResult }
+export type { AppendUpdateResult, ReplayResult }
+
+export interface AppendCurrentUpdateInput {
+  realmId: string
+  docRef: string
+  serializedPayload: string
+  idempotencyKey: string
+}
 /**
  * 追加一条 CRDT 增量并落库 + 广播。
  * 幂等：同一 (docRef, idempotencyKey) 只落库一次。
  */
 export async function appendCurrentUpdate(
-  input: AppendUpdateInput,
+  input: AppendCurrentUpdateInput,
 ): Promise<AppendUpdateResult> {
   // P2-18 修复：鉴权守卫 —— 防止向任意 doc 写入
-  await requireRealmAccess(input.realmId)
+  await requireEntitlement(input.realmId, {
+    resource: 'current',
+    action: 'converge',
+    resourceId: input.docRef,
+  })
+  const actor = (await resolveCurrentActor()) ?? {
+    actorType: 'human' as const,
+    actorId: 'web-client',
+  }
   const db = getDb()
   const broadcast = getBroadcastPort()
-  return appendUpdate(db, broadcast, input)
+  return appendUpdate(db, broadcast, { ...input, ...actor })
 }
 /**
  * 游标重放：读取 doc 指定 seq 之后的增量。

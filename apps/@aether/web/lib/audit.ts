@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db'
 import { auditLog } from '@aether/db'
 import { and, desc, eq } from 'drizzle-orm'
 import type { ActorType, AuditAction } from '@aether/types'
-import { requireRealmAccess } from '@/lib/auth-guard'
+import { requireEntitlement } from '@/lib/auth-guard'
 export interface AuditRow {
   id: string
   // P2-12 修复：realm_id 是 map 返回的实际字段，补进接口避免契约外字段漂移
@@ -28,7 +28,10 @@ export interface ListAuditLogsInput {
 }
 export async function listAuditLogs(input: ListAuditLogsInput): Promise<AuditRow[]> {
   // P2-18 修复：鉴权守卫 —— 校验 realmId 格式与 Realm 存在性
-  await requireRealmAccess(input.realmId)
+  await requireEntitlement(input.realmId, {
+    resource: 'audit',
+    action: 'read',
+  })
   const db = getDb()
   const limit = input.limit ?? 100
   const offset = input.offset ?? 0

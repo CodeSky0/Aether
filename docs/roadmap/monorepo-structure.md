@@ -22,6 +22,7 @@ aether/
     ├── @aether/auth/                 # Better-Auth：Realm Tree、Entity Identity、登录态
     ├── @aether/current-sync/         # Yjs Provider、Presence、Converge Engine、重连握手
     ├── @aether/entity-core/          # Entity 运行时、Capability Manifesto、Handoff Gate 状态机
+    ├── @aether/entitlement/          # 角色、作用域与资源三级授权判定
     ├── @aether/thread-bindings/      # Thread↔Code↔Manifestation↔Dialogue 双向绑定内核
     ├── @aether/manifestation/        # Vercel Preview 集成、Inline Annotation、Spot Diff
     ├── @aether/resonance/            # 公开 API Gateway、Webhook、OAuth 注册、SDK 导出
@@ -40,6 +41,7 @@ aether/
 | `@aether/auth` | Better-Auth 适配、Realm Tree 三级模型、Entity 身份、权限中间件 | `@aether/db`、`@aether/types` | tsc |
 | `@aether/current-sync` | Yjs Provider、Presence、Realm Channel Partition、Converge Engine、Reconnect 握手、序列化适配层 | `@aether/types`、Yjs、y-protocols | tsc |
 | `@aether/entity-core` | Entity 运行时、Capability Manifesto、Handoff Gate 状态机、审计埋点 | `@aether/auth`、`@aether/db`、`@aether/types` | tsc |
+| `@aether/entitlement` | 角色、作用域与资源三级授权判定，Drizzle Entitlement Subject 加载 | `@aether/auth`、`@aether/db`、`@aether/types` | tsc |
 | `@aether/thread-bindings` | Thread 锚点绑定、对话内嵌、重水合路径、绑定内核 | `@aether/db`、`@aether/types` | tsc |
 | `@aether/manifestation` | Vercel Preview 集成、Inline Annotation、Spot Diff、画廊 | `@aether/current-sync`、`@aether/types` | tsc |
 | `@aether/resonance` | 公开 API 路由定义、Webhook 投递、OAuth 注册、SDK 导出 | `@aether/auth`、`@aether/db`、`@aether/types` | tsc + Vite 8 库模式 |

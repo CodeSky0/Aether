@@ -65,6 +65,9 @@ function Sidebar({ currentRealmId }: { currentRealmId?: string | null }) {
   const isAuditActive = currentRealmId
     ? pathname === `/realms/${currentRealmId}/audit` || pathname.startsWith(`/realms/${currentRealmId}/audit/`)
     : false
+  const isMembersActive = currentRealmId
+    ? pathname === `/realms/${currentRealmId}/members` || pathname.startsWith(`/realms/${currentRealmId}/members/`)
+    : false
   const linkClass = (active: boolean) =>
     `rounded-md px-3 py-2 text-copy-13 transition ${
       active
@@ -96,6 +99,12 @@ function Sidebar({ currentRealmId }: { currentRealmId?: string | null }) {
               className={linkClass(isAuditActive)}
             >
               审计记录
+            </Link>
+            <Link
+              href={`/realms/${currentRealmId}/members`}
+              className={linkClass(isMembersActive)}
+            >
+              成员管理
             </Link>
           </>
         )}

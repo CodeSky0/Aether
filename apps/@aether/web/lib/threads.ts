@@ -3,7 +3,7 @@
 import { getDb } from '@/lib/db'
 import { threads, projects } from '@aether/db'
 import { desc, eq } from 'drizzle-orm'
-import { requireRealmAccess } from '@/lib/auth-guard'
+import { requireEntitlement, requireRealmAccess } from '@/lib/auth-guard'
 export interface ThreadRow {
   id: string
   realm_id: string
@@ -55,7 +55,11 @@ export interface CreateThreadInput {
  */
 export async function createThread(input: CreateThreadInput): Promise<{ id: string; title: string }> {
   // P2-18 修复：鉴权守卫
-  await requireRealmAccess(input.realmId)
+  await requireEntitlement(input.realmId, {
+    resource: 'thread',
+    action: 'create',
+    projectId: input.projectId,
+  })
   const db = getDb()
   const [thread] = await db
     .insert(threads)

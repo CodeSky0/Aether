@@ -41,6 +41,13 @@ pnpm test
 | `REDIS_URL` | Redis 连接 URL（多实例广播） | 否 |
 | `PORT` | converge-server 监听端口（默认 1234） | 否 |
 | `AETHER_AUTH_GUARD_ENABLED` | 鉴权守卫开关（默认 true） | 否 |
+| `AETHER_ENTITLEMENT_ENABLED` | Entitlement Engine 强制判定开关（默认 false） | 否 |
+| `BETTER_AUTH_URL` | Better-Auth 应用基础 URL | 否（未配置时不解析会话主体，Current 写入退化为 `web-client`） |
+| `BETTER_AUTH_SECRET` | Better-Auth 会话签名密钥 | 否（未配置时不解析会话主体，Current 写入退化为 `web-client`） |
+| `AETHER_MAIL_PROVIDER` | 邀请邮件 provider：`console`（默认）或 `resend` | 否 |
+| `RESEND_API_KEY` | Resend API 密钥（`AETHER_MAIL_PROVIDER=resend` 时必填） | 否 |
+| `AETHER_MAIL_FROM` | Resend 发件人（`AETHER_MAIL_PROVIDER=resend` 时必填） | 否 |
+| `AETHER_DATABASE_URL` | Realm organization 回填 CLI 使用的 Postgres 连接 URL | 脚本 apply / dry-run 时必填 |
 
 ## 项目结构
 
@@ -57,6 +64,7 @@ Aether/
 │   ├── @aether/current-sync/     # Yjs 适配层（序列化/反序列化/更新订阅）
 │   ├── @aether/state/            # Zustand store 与 Yjs 双向绑定
 │   ├── @aether/entity-core/      # Entity 身份、能力宣言、审计轨迹、Handoff 状态机
+│   ├── @aether/entitlement/      # 角色、作用域与资源三级授权判定
 │   ├── @aether/thread-bindings/  # Thread 代码锚点绑定、对话锻造、上下文重建
 │   ├── @aether/manifestation/    # Manifestation URL 绑定与版本追踪
 │   ├── @aether/ui/               # 共享 UI 组件与设计 tokens
@@ -65,6 +73,25 @@ Aether/
 │   └── @aether/resonance/        # 公开 API Gateway（M3 占位）
 └── docs/                         # 架构规划、里程碑、技术决策、规范文档
 ```
+
+Web 认证入口位于 `apps/@aether/web/lib/auth.ts`，Better-Auth 路由位于
+`apps/@aether/web/app/api/auth/[...all]/route.ts`；认证主体解析统一经
+`@aether/auth` 完成。
+
+Realm membership 邀请与 JIT 镜像位于 `apps/@aether/web/app/actions/membership.ts`，
+Better-Auth organization 操作统一经 `@aether/auth` 封装。
+
+邀请邮件默认输出到 console；生产邮件可设置 `AETHER_MAIL_PROVIDER=resend`、
+`RESEND_API_KEY` 和 `AETHER_MAIL_FROM`。既有占位 Realm 可在本地或 CI 中运行
+一次性回填脚本（不会被 Web 构建引用）：
+
+```bash
+pnpm --filter @aether/auth backfill:realm-orgs -- --owner-email owner@example.com
+pnpm --filter @aether/auth backfill:realm-orgs -- --apply --owner-email owner@example.com
+```
+
+脚本还支持重复传入 `--realm <slug>=<email>` 覆盖单个 Realm；默认只 dry-run，
+需要 `AETHER_DATABASE_URL`、`BETTER_AUTH_URL` 和 `BETTER_AUTH_SECRET`。
 
 ## 核心概念
 

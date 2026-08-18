@@ -146,8 +146,6 @@ export default function CurrentEditor({
         realmId,
         docRef: docRefRef.current,
         serializedPayload: serialized,
-        actorType,
-        actorId,
         idempotencyKey: `${sessionIdRef.current}:${Date.now()}-${Math.random()}`,
       })
         .then(() => setSaving(false))
