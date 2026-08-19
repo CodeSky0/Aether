@@ -8,13 +8,32 @@ import * as schema from '@aether/db/schema'
 
 let dbInstance: ReturnType<typeof createDrizzle> | null = null
 
+function getDatabaseUrl() {
+  // Neon/Vercel may expose the same database under different integration keys.
+  // Prefer the canonical key, then fall back to the injected Postgres aliases.
+  const candidates = [
+    process.env.DATABASE_URL,
+    process.env.POSTGRES_PRISMA_URL,
+    process.env.POSTGRES_URL,
+    process.env.POSTGRES_URL_NON_POOLING,
+    process.env.DATABASE_URL_UNPOOLED,
+  ]
+
+  return candidates.find((value) => value?.trim())?.trim() ?? null
+}
+
+export function isDatabaseConfigured() {
+  return getDatabaseUrl() !== null
+}
+
 function createDrizzle() {
-  const url = process.env.DATABASE_URL
+  const url = getDatabaseUrl()
   if (!url) {
     throw new Error(
-      'DATABASE_URL is not set. Server Actions require a Postgres connection.',
+      'No Postgres connection is configured. Set DATABASE_URL or POSTGRES_URL in the Vercel project environment.',
     )
   }
+
   // postgres-js 连接池：Serverless 场景下 max 连接数保守设置。
   const queryClient = postgres(url, { max: 10 })
   return drizzle(queryClient, { schema })
