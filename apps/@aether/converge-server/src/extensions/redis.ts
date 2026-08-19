@@ -48,7 +48,14 @@ export async function createRedisExtension(
 ): Promise<Extension> {
   try {
     const mod = await import('@hocuspocus/extension-redis')
-    const RedisExtension = mod.Redis ?? mod.default
+    const RedisExtension = (mod.Redis ?? mod.default) as
+      | (new (options: {
+          host: string
+          port: number
+          prefix: string
+          options: RedisOptions
+        }) => Extension)
+      | undefined
     if (!RedisExtension) {
       // 配置了 REDIS_URL 但包不可用时 fail-fast，避免静默降级为单实例
       throw new Error('@hocuspocus/extension-redis module loaded but no Redis export found')

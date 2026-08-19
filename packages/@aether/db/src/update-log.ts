@@ -4,7 +4,6 @@
 // (doc_ref, idempotency_key) 幂等去重，重放以 (realm, doc_ref, seq) 游标
 // 顺序读取。所有访问强制携带 Realm 隔离守卫。
 import { asc, eq, gt, max } from 'drizzle-orm'
-import type { PgDatabase } from 'drizzle-orm/pg-core'
 import { crdtUpdates } from './schema.js'
 import { realmScope } from './guards.js'
 import type { ActorType } from '@aether/types'
@@ -28,8 +27,10 @@ export interface CrdtReplayCursor {
   limit?: number
 }
 
+// The database connection may be instantiated by another workspace package,
+// which can carry a distinct Drizzle type identity in a monorepo build.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type UpdateLogDb = PgDatabase<any, any>
+export type UpdateLogDb = any
 
 /**
  * 追加一条 CRDT 增量并落库。
