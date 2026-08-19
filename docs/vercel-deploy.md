@@ -43,7 +43,7 @@ WebSocket 依赖 **Fluid compute**（2025-04-23 之后创建的新项目默认�
 1. Vercel 控制台 → **Add New → Project** → 导入本仓库。
 2. **Root Directory** 保持为空（即项目根目录 `/`）。
 3. Framework Preset 自动识别为 **Next.js**。
-4. 构建命令无需修改（`vercel.json` 已配置 `pnpm run vercel-build`：先构建 Editor Host 并复制到 Web 的静态目录，再构建 Next.js）。
+4. 构建命令无需修改（`vercel.json` 已配置 `pnpm run vercel-build`：先构建 Editor Host 并复制到 Web 的静态目录，再构建 Next.js）。输出目录已显式设置为 `apps/@aether/web/.next`。
 5. 配置环境变量（Production 与 Preview 均需）：
 
    | 变量 | 说明 |
