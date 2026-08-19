@@ -1,7 +1,10 @@
 {
   "framework": null,
+  "buildCommand": null,
+  "outputDirectory": null,
   "functions": {
     "api/ws.ts": {
+      "runtime": "nodejs22.x",
       "memory": 1024
     }
   }

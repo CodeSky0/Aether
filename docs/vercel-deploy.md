@@ -95,6 +95,8 @@ WebSocket 依赖 **Fluid compute**（2025-04-23 之后创建的新项目默认�
 ```json
 {
   "framework": null,
+  "buildCommand": null,
+  "outputDirectory": null,
   "functions": {
     "api/ws.ts": {
       "maxDuration": 800,
