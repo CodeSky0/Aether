@@ -28,6 +28,8 @@ Aether 是协同智能的介质：承载人、Entity、代码与上下文共存�
 | [specs/m311-invitation-mail-backfill.md](./specs/m311-invitation-mail-backfill.md) | M3.11 邀请邮件与 Realm organization 回填规范 | 20 |
 | [specs/m312-membership-ui.md](./specs/m312-membership-ui.md) | M3.12 邀请 / 成员管理 UI 与 membership 授权收口 | 21 |
 | [specs/m313-audit-export.md](./specs/m313-audit-export.md) | M3.13 Audit Vault 导出规范 | 22 |
+| [specs/m314-sso-oidc.md](./specs/m314-sso-oidc.md) | M3.14 SSO（OIDC）接入与登录 UI 规范 | 23 |
+| [specs/m314-plan.md](./specs/m314-plan.md) | M3.14 实施计划 | 24 |
 
 ## 阅读顺序
 

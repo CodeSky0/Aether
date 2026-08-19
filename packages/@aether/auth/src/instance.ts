@@ -5,9 +5,11 @@ import { betterAuth, type BetterAuthOptions } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { toNextJsHandler } from 'better-auth/next-js'
 import { organization } from 'better-auth/plugins'
+import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { realmAccessControl, realmRoles } from './permissions.js'
 import { betterAuthSchema } from './schema.js'
 import { resolveMailer, type Mailer } from './mailer.js'
+import { toGenericOAuthConfig, type OidcProviderConfig } from './oidc.js'
 export interface CreateAuthOptions {
   /** 已配置 schema 的 Drizzle pg 实例（含 @aether/auth schema 与 @aether/db schema）。 */
   db: Parameters<typeof drizzleAdapter>[0]
@@ -15,6 +17,8 @@ export interface CreateAuthOptions {
   secret?: string
   trustedOrigins?: string[]
   mailer?: Mailer
+  /** OIDC provider 列表；非空时注册 genericOAuth 插件。 */
+  oauthProviders?: readonly OidcProviderConfig[]
   /** 透传给 betterAuth 的额外选项（如 emailAndPassword、socialProviders）。 */
   options?: Omit<BetterAuthOptions, 'database' | 'baseURL' | 'secret' | 'trustedOrigins' | 'plugins'>
 }
@@ -25,6 +29,7 @@ export function createAuth(options: CreateAuthOptions) {
     secret,
     trustedOrigins,
     mailer,
+    oauthProviders,
     options: extra,
   } = options
   return betterAuth({
@@ -51,6 +56,9 @@ export function createAuth(options: CreateAuthOptions) {
           })
         },
       }),
+      ...(oauthProviders && oauthProviders.length > 0
+        ? [genericOAuth({ config: oauthProviders.map((p) => toGenericOAuthConfig(p, baseURL)) })]
+        : []),
     ],
     ...extra,
   })

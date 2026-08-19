@@ -5,6 +5,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { type ReactNode, useEffect, useState } from 'react'
+import UserMenu from '@/components/user-menu'
 interface NavShellProps {
   children: ReactNode
   currentRealmName?: string | null
@@ -34,13 +35,14 @@ export default function NavShell({ children, currentRealmName, currentRealmId }:
             <span className="max-w-56 truncate text-copy-13 text-neutral-7">{realmName}</span>
           </>
         )}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-4">
           <Link
             href="/"
             className="text-copy-13 text-neutral-6 transition hover:text-neutral-9"
           >
             首页
           </Link>
+          <UserMenu />
         </div>
       </header>
       <div className="flex flex-1 overflow-hidden">

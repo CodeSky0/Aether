@@ -106,7 +106,7 @@ graph LR
 - [x] Entitlement Engine：角色 / 作用域 / 资源三级判定
 - [x] Audit Vault：审计中心与导出
 - [ ] SSO / SCIM 接入
-  - 已完成服务端会话主体解析、Realm membership provisioning（邀请 + JIT 镜像）以及邀请邮件投递与既有占位 Realm organization 回填；外部 IdP 与 SCIM provisioning 端点待后续实现。
+  - 已完成服务端会话主体解析、Realm membership provisioning（邀请 + JIT 镜像）、邀请邮件投递与既有占位 Realm organization 回填，以及 OIDC 外部 IdP 登录与 Web 登录 UI（M3.14）；SCIM provisioning 端点待后续实现。
 - [ ] Realm Isolation 生产级验证
 - [ ] Resonance Gateway：全资源公开 API
 - [ ] 内部功能 API 化改造（API-First 兑现）
