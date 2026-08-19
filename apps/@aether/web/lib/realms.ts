@@ -1,7 +1,7 @@
 // @aether/web · Realm 列表与创建 Server Actions
 'use server'
 
-import { getDb } from '@/lib/db'
+import { getDb, isDatabaseConfigured } from '@/lib/db'
 import { members, realms } from '@aether/db'
 import { desc } from 'drizzle-orm'
 import { createRealmOrganization } from '@aether/auth'
@@ -21,6 +21,9 @@ export interface RealmRow {
  * M1 阶段无 auth 守卫，后续接入认证后可加 userId 过滤。
  */
 export async function listRealms(): Promise<RealmRow[]> {
+  // 预览环境可能尚未注入 Vercel 项目变量；不要让只读页面直接崩溃。
+  if (!isDatabaseConfigured()) return []
+
   const db = getDb()
   return db
     .select()
