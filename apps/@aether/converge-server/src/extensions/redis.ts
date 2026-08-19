@@ -1,19 +1,47 @@
 // @aether/converge-server · Redis Extension Seam
-// 探测文档推荐：多实例部署时用 Redis extension 同步 document updates 和 awareness。
-// M1 阶段预留 seam，通过 REDIS_URL 环境变量启用。
-// 未设置 REDIS_URL 时返回 null（单实例模式，InMemoryBroadcastPort 已足够）。
+// 多实例部署时用 Redis extension 同步 document updates 和 awareness。
+// Vercel 多实例函数场景下，通过 REDIS_URL 启用（建议使用 Upstash Redis）。
+// 支持 redis:// 与 rediss://（TLS，Upstash 默认协议）两种连接串。
 import type { Extension } from '@hocuspocus/server'
+import type { RedisOptions } from 'ioredis'
+
 export interface RedisExtensionOptions {
-  /** Redis 连接 URL（如 redis://localhost:6379） */
+  /** Redis 连接 URL（如 redis://localhost:6379 或 rediss://:token@host:port） */
   redisUrl: string
   /** 可选的 Redis 前缀，用于多租户隔离 */
   prefix?: string
 }
+
+interface ParsedRedisConfig {
+  host: string
+  port: number
+  options: RedisOptions
+}
+
+function parseRedisUrl(url: string): ParsedRedisConfig {
+  const parsed = new URL(url)
+  const options: RedisOptions = {
+    host: parsed.hostname,
+    port: parsed.port ? parseInt(parsed.port, 10) : 6379,
+  }
+  if (parsed.password) {
+    options.password = decodeURIComponent(parsed.password)
+  }
+  if (parsed.username) {
+    options.username = decodeURIComponent(parsed.username)
+  }
+  // Upstash 等托管 Redis 使用 TLS 协议（rediss://）
+  if (parsed.protocol === 'rediss:') {
+    options.tls = {}
+  }
+  return { host: options.host as string, port: options.port as number, options }
+}
+
 /**
  * 创建 Redis extension（如果可用）。
  *
  * 动态导入 @hocuspocus/extension-redis 以避免硬依赖。
- * M1 阶段不安装该包；多实例部署时执行 `pnpm --filter @aether/converge-server add @hocuspocus/extension-redis`。
+ * 多实例部署时执行 `pnpm --filter @aether/converge-server add @hocuspocus/extension-redis`。
  */
 export async function createRedisExtension(
   options: RedisExtensionOptions,
@@ -22,35 +50,22 @@ export async function createRedisExtension(
     const mod = await import('@hocuspocus/extension-redis')
     const RedisExtension = mod.Redis ?? mod.default
     if (!RedisExtension) {
-      // P2-15 修复：配置了 REDIS_URL 但包不可用时 fail-fast，避免静默降级为单实例
+      // 配置了 REDIS_URL 但包不可用时 fail-fast，避免静默降级为单实例
       throw new Error('@hocuspocus/extension-redis module loaded but no Redis export found')
     }
+    const { host, port, options: redisOptions } = parseRedisUrl(options.redisUrl)
     return new RedisExtension({
-      host: extractHost(options.redisUrl),
-      port: extractPort(options.redisUrl),
+      host,
+      port,
       prefix: options.prefix ?? 'aether:',
+      options: redisOptions,
     })
   } catch (err) {
-    // P2-15 修复：配置了 REDIS_URL 但依赖缺失时抛出错误而非静默降级
+    // 配置了 REDIS_URL 但依赖缺失时抛出错误而非静默降级
     throw new Error(
       `[converge-server] REDIS_URL is configured but @hocuspocus/extension-redis is not available. ` +
         `Install it with: pnpm --filter @aether/converge-server add @hocuspocus/extension-redis. ` +
         `Original error: ${err instanceof Error ? err.message : String(err)}`,
     )
-  }
-}
-function extractHost(url: string): string {
-  try {
-    return new URL(url).hostname
-  } catch {
-    return 'localhost'
-  }
-}
-function extractPort(url: string): number {
-  try {
-    const port = new URL(url).port
-    return port ? parseInt(port, 10) : 6379
-  } catch {
-    return 6379
   }
 }

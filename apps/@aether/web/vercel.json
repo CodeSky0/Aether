@@ -1,0 +1,4 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "pnpm exec turbo run build --filter=@aether/web"
+}

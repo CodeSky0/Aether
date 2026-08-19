@@ -16,15 +16,19 @@
   "dependencies": {
     "@aether/db": "workspace:*",
     "@aether/types": "workspace:*",
+    "@hocuspocus/extension-redis": "^2.15.3",
     "@hocuspocus/server": "^2.15.0",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
+    "ws": "^8.21.3",
     "yjs": "13.6.27"
   },
   "devDependencies": {
     "@aether/config": "workspace:*",
     "@types/node": "^26.2.0",
+    "@types/ws": "^8.18.1",
     "eslint": "^9.39.5",
+    "ioredis": "^6.0.0",
     "tsx": "^4.20.5",
     "typescript": "^6.0.0",
     "vitest": "^3.2.4"

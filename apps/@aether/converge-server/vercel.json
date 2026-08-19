@@ -1,0 +1,8 @@
+{
+  "framework": null,
+  "functions": {
+    "api/ws.ts": {
+      "memory": 1024
+    }
+  }
+}
