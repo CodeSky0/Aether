@@ -1,6 +1,5 @@
 {
   "framework": "nextjs",
-  "outputDirectory": "apps/@aether/web/.next",
   "buildCommand": "pnpm run vercel-build",
   "devCommand": "pnpm turbo dev",
   "functions": {
