@@ -11,6 +11,7 @@ node_modules/
 dist/
 build/
 target/
+apps/@aether/web/public/editor/
 
 # Turbo build cache
 .turbo/
