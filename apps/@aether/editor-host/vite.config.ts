@@ -7,6 +7,7 @@ const isApplicationBuild =
   process.env.AETHER_EDITOR_HOST_APP_BUILD === 'true'
 
 export default defineConfig({
+  base: '/editor/',
   plugins: [react(), tailwindcss()],
   ...(isApplicationBuild
     ? {}

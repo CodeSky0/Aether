@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "pnpm exec turbo run build --filter=@aether/web --filter=@aether/editor-host --filter=@aether/converge-server",
+  "buildCommand": "pnpm run vercel-build",
   "devCommand": "pnpm turbo dev",
   "functions": {
     "api/ws.ts": {
@@ -10,12 +10,12 @@
   },
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/ws"
+      "source": "/editor",
+      "destination": "/editor/"
     },
     {
       "source": "/editor/(.*)",
-      "destination": "/apps/@aether/editor-host/dist/index.html"
+      "destination": "/editor/index.html"
     }
   ],
   "headers": [
