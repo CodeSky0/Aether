@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "vercel-build": "pnpm exec turbo run build --filter=@aether/web^... && pnpm --filter @aether/editor-host build && rm -rf apps/@aether/web/public/editor && mkdir -p apps/@aether/web/public/editor && cp -R apps/@aether/editor-host/dist/. apps/@aether/web/public/editor/ && pnpm --filter @aether/web build && rm -rf .next && cp -R apps/@aether/web/.next .next && if [ -f .next/routes-manifest.json ] && [ ! -f .next/routes-manifest-deterministic.json ]; then cp .next/routes-manifest.json .next/routes-manifest-deterministic.json; fi",
+    "vercel-build": "pnpm exec turbo run build --filter=@aether/web^... && pnpm --filter @aether/editor-host build && rm -rf apps/@aether/web/public/editor && mkdir -p apps/@aether/web/public/editor && cp -R apps/@aether/editor-host/dist/. apps/@aether/web/public/editor/ && pnpm --filter @aether/web build && if [ -f apps/@aether/web/.next/routes-manifest.json ] && [ ! -f apps/@aether/web/.next/routes-manifest-deterministic.json ]; then cp apps/@aether/web/.next/routes-manifest.json apps/@aether/web/.next/routes-manifest-deterministic.json; fi && rm -rf .next && cp -R apps/@aether/web/.next .next && if [ -f .next/routes-manifest.json ] && [ ! -f .next/routes-manifest-deterministic.json ]; then cp .next/routes-manifest.json .next/routes-manifest-deterministic.json; fi",
     "changeset": "pnpm dlx @changesets/cli",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
