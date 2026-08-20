@@ -24,11 +24,16 @@ export async function listRealms(): Promise<RealmRow[]> {
   // 预览环境可能尚未注入 Vercel 项目变量；不要让只读页面直接崩溃。
   if (!isDatabaseConfigured()) return []
 
-  const db = getDb()
-  return db
-    .select()
-    .from(realms)
-    .orderBy(desc(realms.created_at))
+  try {
+    const db = getDb()
+    return await db
+      .select()
+      .from(realms)
+      .orderBy(desc(realms.created_at))
+  } catch (error) {
+    console.error('[v0] Failed to load realms:', error)
+    return []
+  }
 }
 
 export interface CreateRealmInput {
