@@ -4,9 +4,7 @@
 import type { NextConfig } from 'next'
 const config: NextConfig = {
   reactStrictMode: true,
-  // 让 Next.js 直接在仓库根目录生成产物，匹配 Vercel 的 Root Directory 配置。
-  // 这样 HTML、RSC、serverless functions 与 /_next/static 使用同一份构建。
-  distDir: '../../.next',
+  // 使用 web 应用目录下的默认 .next 产物目录，和 Vercel outputDirectory 保持一致。
   // 允许在线预览域名访问 dev server（Next 16 使用 allowedDevOrigins 替代旧 experimental.allowedHosts）
   allowedDevOrigins: ['.monkeycode-ai.online'],
   transpilePackages: [
