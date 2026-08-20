@@ -14,6 +14,11 @@ export default defineConfig({
   schema: ['./src/schema.ts', authSchemaPath],
   out: './drizzle',
   dbCredentials: {
-    url: process.env.AETHER_DATABASE_URL!,
+    // Vercel 部署使用直连地址执行迁移；本地兼容历史变量。
+    url:
+      process.env.DATABASE_URL_UNPOOLED ??
+      process.env.POSTGRES_URL_NON_POOLING ??
+      process.env.DATABASE_URL ??
+      process.env.AETHER_DATABASE_URL!,
   },
 })
