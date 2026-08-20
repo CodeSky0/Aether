@@ -89,7 +89,7 @@ CREATE TABLE "projects" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "realms" (
+CREATE TABLE IF NOT EXISTS "realms" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"slug" text NOT NULL,
 	"name" text NOT NULL,
@@ -225,7 +225,7 @@ CREATE INDEX "members_actor_idx" ON "members" USING btree ("realm_id","actor_typ
 CREATE INDEX "members_project_role_idx" ON "members" USING btree ("project_id","role");--> statement-breakpoint
 CREATE INDEX "members_status_idx" ON "members" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "projects_realm_slug_idx" ON "projects" USING btree ("realm_id","slug");--> statement-breakpoint
-CREATE UNIQUE INDEX "realms_slug_uniq" ON "realms" USING btree ("slug");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "realms_slug_uniq" ON "realms" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "threads_realm_created_idx" ON "threads" USING btree ("realm_id","created_at");--> statement-breakpoint
 CREATE INDEX "threads_project_status_idx" ON "threads" USING btree ("project_id","status");--> statement-breakpoint
 CREATE INDEX "threads_parent_idx" ON "threads" USING btree ("parent_thread_id");--> statement-breakpoint
