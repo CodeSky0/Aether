@@ -7,11 +7,40 @@
 
 /* 宿主运行时变量（tokens.css 只声明静态契约，paper/accent/border 由宿主覆盖） */
 :root {
-  --surface-paper: #fcfaf7;
+  color-scheme: light;
+  /* 纸张即 n-1（暖纸，绝非纯白）：卡片与页面同底，仅以 ring 分隔 */
+  --surface-paper: var(--color-neutral-1);
   --color-border: #e3e1db;
   --app-font-sans:
-    system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI',
-    Roboto, sans-serif;
+    Inter, system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei',
+    'Segoe UI', Roboto, sans-serif;
+}
+
+/* 暗色模式：跟随系统自动反转（n-1 ↔ n-10，梅红提亮为 #e095a4）。
+ * 反转值为纯中性灰（R=G=B），暖意仅由 --surface-paper 承载（戒律 05）；
+ * 全部 utility 经 CSS 变量引用，无需切换类名。数值同源 @aether/ui tokens.ts dark 表。
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --surface-paper: #141414;
+    --color-accent: #e095a4;
+    --color-border: #404040;
+    --color-neutral-1: #141414;
+    --color-neutral-2: #242424;
+    --color-neutral-3: #404040;
+    --color-neutral-4: #5c5c5c;
+    --color-neutral-5: #787878;
+    --color-neutral-6: #a8a8a8;
+    --color-neutral-7: #d0d0d0;
+    --color-neutral-8: #e3e3e3;
+    --color-neutral-9: #f0f0f0;
+    --color-neutral-10: #f8f8f8;
+    --color-info: #7090b3;
+    --color-success: #8cbea3;
+    --color-warning: #c8a06b;
+    --color-error: #c8767f;
+  }
 }
 
 html {

@@ -52,7 +52,7 @@ export default function AuthForms({ oidcProvider }: AuthFormsProps) {
       } else {
         await postAuthJson('/api/auth/sign-up/email', { email, password, name })
       }
-      router.push('/')
+      router.push('/dashboard')
       router.refresh()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '请求失败，请稍后再试')
@@ -70,7 +70,7 @@ export default function AuthForms({ oidcProvider }: AuthFormsProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           providerId: oidcProvider.providerId,
-          callbackURL: '/',
+          callbackURL: '/dashboard',
         }),
       })
       const payload = (await response.json()) as {
@@ -92,11 +92,14 @@ export default function AuthForms({ oidcProvider }: AuthFormsProps) {
     }
   }
 
+  // Yohaku：输入控件与页面同底（n-1），ring 分隔；focus 转梅红描边（戒律 04/07）
   const inputClass =
-    'w-full rounded-md border border-border bg-paper px-3 py-2 text-copy-14 text-neutral-10 outline-none transition focus:border-accent'
+    'w-full rounded-md bg-neutral-1 px-3 py-2 text-copy-14 text-neutral-10 ring-1 ring-border outline-none transition placeholder:text-neutral-4 focus:ring-2 focus:ring-accent/50'
+  const labelClass =
+    'font-mono text-label-12 uppercase tracking-wider text-neutral-6'
 
   return (
-    <div className="w-full max-w-sm">
+    <div className="w-full">
       <form
         onSubmit={(event) => {
           void submit(event)
@@ -105,7 +108,7 @@ export default function AuthForms({ oidcProvider }: AuthFormsProps) {
       >
         {mode === 'sign-up' && (
           <label className="flex flex-col gap-1.5">
-            <span className="text-label-12 text-neutral-7">显示名</span>
+            <span className={labelClass}>显示名</span>
             <input
               className={inputClass}
               value={name}
@@ -116,7 +119,7 @@ export default function AuthForms({ oidcProvider }: AuthFormsProps) {
           </label>
         )}
         <label className="flex flex-col gap-1.5">
-          <span className="text-label-12 text-neutral-7">邮箱</span>
+          <span className={labelClass}>邮箱</span>
           <input
             className={inputClass}
             type="email"
@@ -127,7 +130,7 @@ export default function AuthForms({ oidcProvider }: AuthFormsProps) {
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-label-12 text-neutral-7">密码</span>
+          <span className={labelClass}>密码</span>
           <input
             className={inputClass}
             type="password"
@@ -143,11 +146,16 @@ export default function AuthForms({ oidcProvider }: AuthFormsProps) {
           <p className="rounded-md bg-error/10 p-3 text-label-12 text-error">{error}</p>
         )}
 
-        <button type="submit" className="btn-primary" disabled={pending}>
+        {/* 墨水按钮：n-9 填充 + n-1 文字，暗色随变量自动反转 */}
+        <button
+          type="submit"
+          className="inline-flex w-full items-center justify-center rounded-md bg-neutral-9 px-4 py-2 text-copy-14 font-medium text-neutral-1 transition hover:bg-neutral-8 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={pending}
+        >
           {pending
-            ? '处理中…'
+            ? '进入中…'
             : mode === 'sign-in'
-              ? '登录'
+              ? '进入 Current'
               : '创建账号'}
         </button>
       </form>
@@ -175,7 +183,7 @@ export default function AuthForms({ oidcProvider }: AuthFormsProps) {
           </div>
           <button
             type="button"
-            className="w-full rounded-md border border-border bg-paper px-3 py-2 text-copy-14 text-neutral-9 transition hover:border-accent hover:text-accent disabled:opacity-50"
+            className="w-full rounded-md bg-neutral-1 px-3 py-2 text-copy-14 text-neutral-9 ring-1 ring-border transition hover:text-accent hover:ring-accent/50 disabled:opacity-50"
             disabled={pending}
             onClick={() => {
               void signInWithOidc()

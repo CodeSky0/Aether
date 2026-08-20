@@ -2,8 +2,8 @@
 'use server'
 
 import { getDb, isDatabaseConfigured } from '@/lib/db'
-import { members, realms } from '@aether/db'
-import { desc } from 'drizzle-orm'
+import { entities, members, realms, threads } from '@aether/db'
+import { desc, eq, sql } from 'drizzle-orm'
 import { createRealmOrganization } from '@aether/auth'
 import { tryGetAuth } from '@/lib/auth'
 import { resolveCurrentActor } from '@/lib/auth-guard'
@@ -39,6 +39,56 @@ export async function listRealms(): Promise<RealmRow[]> {
 export interface CreateRealmInput {
   slug: string
   name: string
+}
+
+export interface RealmCardRow extends RealmRow {
+  /** status='active' 的 Entity 数量：RealmCard 脉冲点的数据源 */
+  activeEntityCount: number
+  /** 最新 Thread 标题；Realm 内无 Thread 时为 null */
+  lastThreadTitle: string | null
+}
+
+/**
+ * Dashboard / Realms 列表：Realm + 活跃 Entity 计数 + 最新 Thread 标题。
+ * 计数取 entities.status='active'；最新 Thread 以 DISTINCT ON 每个 Realm 取一行。
+ */
+export async function listRealmCards(): Promise<RealmCardRow[]> {
+  // 预览环境可能尚未注入数据库变量；不要让只读页面直接崩溃。
+  if (!isDatabaseConfigured()) return []
+
+  try {
+    const db = getDb()
+    const realmRows = await db
+      .select()
+      .from(realms)
+      .orderBy(desc(realms.created_at))
+
+    const entityCounts = await db
+      .select({ realmId: entities.realm_id, count: sql<number>`count(*)::int` })
+      .from(entities)
+      .where(eq(entities.status, 'active'))
+      .groupBy(entities.realm_id)
+
+    const latestThreads = await db
+      .selectDistinctOn([threads.realm_id], {
+        realmId: threads.realm_id,
+        title: threads.title,
+      })
+      .from(threads)
+      .orderBy(threads.realm_id, desc(threads.created_at))
+
+    const countByRealm = new Map(entityCounts.map((r) => [r.realmId, r.count]))
+    const threadByRealm = new Map(latestThreads.map((r) => [r.realmId, r.title]))
+
+    return realmRows.map((realm) => ({
+      ...realm,
+      activeEntityCount: countByRealm.get(realm.id) ?? 0,
+      lastThreadTitle: threadByRealm.get(realm.id) ?? null,
+    }))
+  } catch (error) {
+    console.error('[v0] Failed to load realm cards:', error)
+    return []
+  }
 }
 
 /**

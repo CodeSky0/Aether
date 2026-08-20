@@ -1,6 +1,6 @@
 // @aether/web · /realms 页面：Realm 列表与创建表单
 // Yohaku：页头统一 eyebrow + serif H1；创建表单收进安静的面板，卡片以余白呼吸。
-import { listRealms } from '@/lib/realms'
+import { listRealmCards } from '@/lib/realms'
 import RealmCard from '@/components/realm-card'
 import NavShell from '@/components/nav-shell'
 import PageHeader from '@/components/page-header'
@@ -9,13 +9,13 @@ import CreateRealmForm from '@/components/create-realm-form'
 export const dynamic = 'force-dynamic'
 
 export default async function RealmsPage() {
-  const realms = await listRealms()
+  const realms = await listRealmCards()
 
   return (
     <NavShell>
       <div className="mx-auto max-w-3xl px-6 py-12 md:px-8">
         <PageHeader
-          eyebrow="Workspaces"
+          eyebrow="All Realms"
           title="Realms"
           description="Realm 是隔离的工作空间：成员、Thread 与数据边界都以 Realm 为单位。"
         />
