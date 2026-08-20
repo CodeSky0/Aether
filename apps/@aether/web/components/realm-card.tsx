@@ -44,7 +44,7 @@ export default function RealmCard({ realm }: RealmCardProps) {
 
       <div className="mt-auto pt-6">
         <Link
-          href={`/realms/${realm.id}`}
+          href={`/realm/${realm.id}/current`}
           className="text-copy-14 text-neutral-9 transition hover:text-accent"
         >
           进入 Current →

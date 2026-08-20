@@ -7,7 +7,12 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**", "out/**"],
-      "env": ["TAILWIND_VERSION", "AETHER_CONFIG_HASH"]
+      "env": [
+        "TAILWIND_VERSION",
+        "AETHER_CONFIG_HASH",
+        "AETHER_EDITOR_HOST_BASE",
+        "AETHER_EDITOR_HOST_APP_BUILD"
+      ]
     },
     "check": {
       "dependsOn": [],

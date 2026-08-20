@@ -39,12 +39,12 @@ function EmptyState() {
   return (
     <section className="rounded-xl bg-neutral-1 px-6 py-16 text-center ring-1 ring-border">
       <p className="font-serif text-title-20 text-neutral-7">
-        No Realms yet. The void awaits.
+        The void awaits. Create a Realm.
+      </p>
+      <p className="mt-2 text-label-12 text-neutral-6">
+        命名你的第一个协作边界——人类与 Entity 将在此共处同一 Current。
       </p>
       <div className="mx-auto mt-8 max-w-md text-left">
-        <p className="text-caption-10 uppercase tracking-[1.5px] text-neutral-6">
-          新建 Realm
-        </p>
         <CreateRealmForm />
       </div>
     </section>

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@aether/converge-server",
+  "functions": {
+    "api/ws.ts": {
+      "memory": 1024,
+      "maxDuration": 300
+    }
+  }
+}

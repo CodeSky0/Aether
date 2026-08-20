@@ -23,6 +23,10 @@ import {
 interface CurrentEditorProps {
   realmId: string
   threadId: string
+  /** 显式 doc_ref（如 file:{realmId}:{path}）；缺省为 thread:{threadId} */
+  docRef?: string
+  /** 选区变化回调；选区为空时回传 null（供 Thread 面板联动） */
+  onSelectionChange?: (selection: { start: number; end: number; text: string } | null) => void
   /** 操作者身份；M1 阶段默认 entity */
   actorType?: ActorType
   actorId?: string
@@ -107,13 +111,15 @@ function applyTextDiff(yText: Y.Text, oldText: string, newText: string): void {
 export default function CurrentEditor({
   realmId,
   threadId,
+  docRef: docRefProp,
+  onSelectionChange,
   actorType = 'entity',
   actorId = 'web-client',
   actorName = actorId,
 }: CurrentEditorProps) {
-  const docRef = `thread:${threadId}`
-  const docRefRef = useRef(docRef)
-  docRefRef.current = docRef
+  const resolvedDocRef = docRefProp ?? `thread:${threadId}`
+  const docRefRef = useRef(resolvedDocRef)
+  docRefRef.current = resolvedDocRef
   const doc = useRef(new Y.Doc()).current
   const clientRef = useRef<{
     localSeq: number | null
@@ -216,10 +222,11 @@ export default function CurrentEditor({
         .catch(() => {
           connectRetries++
           if (connectRetries < CONNECT_MAX_RETRIES) {
+            setError(`连接中断，正在重试…（${connectRetries}/${CONNECT_MAX_RETRIES}）`)
             connectTimer = setTimeout(tryConnect, CONNECT_RETRY_MS)
           } else {
             setConnected(false)
-            setError('连接失败，请刷新页面重试')
+            setError('连接失败。请检查网络后刷新重试。')
           }
         })
     }
@@ -238,7 +245,7 @@ export default function CurrentEditor({
       const textarea = textareaRef.current
       const offset = textarea?.selectionStart ?? 0
       try {
-        await setPresence(realmId, docRef, sessionIdRef.current, {
+        await setPresence(realmId, resolvedDocRef, sessionIdRef.current, {
           actor_id: actorId,
           actor_type: actorType,
           actor_name: actorName,
@@ -254,7 +261,7 @@ export default function CurrentEditor({
     }
     const pollPresence = async () => {
       try {
-        const entries = await getPresence(realmId, docRef, sessionIdRef.current)
+        const entries = await getPresence(realmId, resolvedDocRef, sessionIdRef.current)
         if (stopped) return
         setRemoteCursors(
           entries.map((e: PresenceEntry) => ({
@@ -282,9 +289,9 @@ export default function CurrentEditor({
       stopped = true
       clearInterval(heartbeat)
       clearInterval(poller)
-      void deletePresence(realmId, docRef, sessionIdRef.current)
+      void deletePresence(realmId, resolvedDocRef, sessionIdRef.current)
     }
-  }, [realmId, docRef, actorId, actorType, actorName])
+  }, [realmId, resolvedDocRef, actorId, actorType, actorName])
   // 光标/选区变化 → 立即上报（节流：只在 selection 实际变化时）
   const lastSelectionRef = useRef('')
   const handleSelectionChange = () => {
@@ -293,7 +300,7 @@ export default function CurrentEditor({
     const key = `${textarea.selectionStart}:${textarea.selectionEnd}`
     if (key === lastSelectionRef.current) return
     lastSelectionRef.current = key
-    void setPresence(realmId, docRef, sessionIdRef.current, {
+    void setPresence(realmId, resolvedDocRef, sessionIdRef.current, {
       actor_id: actorId,
       actor_type: actorType,
       actor_name: actorName,
@@ -303,6 +310,14 @@ export default function CurrentEditor({
     }).catch(() => {
       // 上报失败静默
     })
+    // 通知外部（Thread 面板）：非空选区 → 选中文本；空选区 → null
+    if (onSelectionChange) {
+      const start = textarea.selectionStart ?? 0
+      const end = textarea.selectionEnd ?? 0
+      onSelectionChange(
+        start < end ? { start, end, text: textValue.slice(start, end) } : null,
+      )
+    }
   }
   // 同步 Y.Text ↔ textarea
   useEffect(() => {

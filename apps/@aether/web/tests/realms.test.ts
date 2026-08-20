@@ -55,13 +55,18 @@ describe('createRealm', () => {
         { id: 'realm-1', slug: 'demo', name: 'Demo' },
       ]),
     )
-    mockedGetDb.mockReturnValue({ insert } as never)
+    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+      callback({ insert }),
+    )
+    mockedGetDb.mockReturnValue({ transaction } as never)
 
     await createRealm({ slug: 'demo', name: 'Demo' })
 
     expect(mockedResolveActor).not.toHaveBeenCalled()
     expect(mockedCreateOrganization).not.toHaveBeenCalled()
-    expect(insert).toHaveBeenCalledTimes(1)
+    expect(transaction).toHaveBeenCalledTimes(1)
+    // realm + 本地 owner 成员 + 默认 project + 种子 entity
+    expect(insert).toHaveBeenCalledTimes(4)
   })
 
   it('binds a configured session to an organization and owner membership', async () => {

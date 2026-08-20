@@ -48,10 +48,12 @@ export interface CreateThreadInput {
   projectId: string
   title: string
   manifestationUrl?: string
+  /** 编辑器中选中的代码片段；写入 code_anchor 供 Thread 与代码联动 */
+  codeAnchor?: string
 }
 /**
  * 创建新 Thread。
- * code_anchor / manifestation_url 等字段使用空默认值。
+ * code_anchor 记录发起 Thread 时的编辑器选区（如有）。
  */
 export async function createThread(input: CreateThreadInput): Promise<{ id: string; title: string }> {
   // P2-18 修复：鉴权守卫
@@ -68,6 +70,7 @@ export async function createThread(input: CreateThreadInput): Promise<{ id: stri
       project_id: input.projectId,
       title: input.title,
       manifestation_url: input.manifestationUrl ?? null,
+      ...(input.codeAnchor ? { code_anchor: { selection: input.codeAnchor } } : {}),
     })
     .returning({ id: threads.id, title: threads.title })
   if (!thread) {

@@ -17,7 +17,7 @@ export default async function RealmsPage() {
         <PageHeader
           eyebrow="All Realms"
           title="Realms"
-          description="Realm 是隔离的工作空间：成员、Thread 与数据边界都以 Realm 为单位。"
+          description="Realm 是隔离的协作边界：成员、Thread 与数据边界都以 Realm 为单位。"
         />
 
         <section className="mb-12 rounded-lg bg-neutral-1 p-5 ring-1 ring-border">
@@ -46,7 +46,7 @@ function EmptyState() {
     <div className="rounded-lg border border-dashed border-border bg-neutral-1 px-6 py-16 text-center">
       <p className="text-copy-14 text-neutral-7">暂无 Realm</p>
       <p className="mt-2 text-label-12 text-neutral-6">
-        在上方面板填写 slug 与名称，创建第一个工作空间。
+        在上方面板为 Realm 命名，创建第一个协作边界。
       </p>
     </div>
   )

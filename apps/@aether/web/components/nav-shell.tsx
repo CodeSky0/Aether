@@ -61,8 +61,8 @@ function Sidebar({ currentRealmId }: { currentRealmId?: string | null }) {
   // P1-8 修复：统一高亮判定规则。
   // "所有 Realm" 只在精确匹配 /realms 时高亮，避免 /realms/[id] 子路由下误高亮。
   const isRealmsActive = pathname === '/realms'
-  const isThreadListActive = currentRealmId
-    ? pathname === `/realms/${currentRealmId}`
+  const isCurrentActive = currentRealmId
+    ? pathname.startsWith(`/realm/${currentRealmId}/current`)
     : false
   const isAuditActive = currentRealmId
     ? pathname === `/realms/${currentRealmId}/audit` || pathname.startsWith(`/realms/${currentRealmId}/audit/`)
@@ -80,7 +80,7 @@ function Sidebar({ currentRealmId }: { currentRealmId?: string | null }) {
     <aside className="hidden w-60 shrink-0 border-r border-border bg-neutral-1 p-4 md:block">
       <nav className="flex flex-col gap-1">
         <p className="px-3 pb-1 pt-2 text-caption-10 uppercase tracking-[1.5px] text-neutral-6">
-          工作区
+          Realm
         </p>
         <Link href="/realms" className={linkClass(isRealmsActive)}>
           所有 Realm
@@ -91,10 +91,10 @@ function Sidebar({ currentRealmId }: { currentRealmId?: string | null }) {
               当前 Realm
             </p>
             <Link
-              href={`/realms/${currentRealmId}`}
-              className={linkClass(isThreadListActive)}
+              href={`/realm/${currentRealmId}/current`}
+              className={linkClass(isCurrentActive)}
             >
-              Thread 列表
+              Current
             </Link>
             <Link
               href={`/realms/${currentRealmId}/audit`}

@@ -9,7 +9,10 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "vercel-build": "pnpm --filter @aether/db db:migrate && pnpm exec turbo run build --filter=@aether/web^... && pnpm --filter @aether/editor-host build && rm -rf apps/@aether/web/public/editor && mkdir -p apps/@aether/web/public/editor && cp -R apps/@aether/editor-host/dist/. apps/@aether/web/public/editor/ && pnpm --filter @aether/web build && test -d apps/@aether/web/.next && test -d apps/@aether/web/.next/static && test -f apps/@aether/web/.next/BUILD_ID && test -f apps/@aether/web/.next/routes-manifest.json && cp apps/@aether/web/.next/routes-manifest.json apps/@aether/web/.next/routes-manifest-deterministic.json && test -f apps/@aether/web/.next/routes-manifest-deterministic.json",
+    "build:web": "pnpm turbo run build --filter=@aether/web",
+    "build:editor-host": "pnpm turbo run build --filter=@aether/editor-host",
+    "build:converge-server": "pnpm turbo run build --filter=@aether/converge-server",
+    "db:migrate": "pnpm --filter @aether/db db:migrate",
     "changeset": "pnpm dlx @changesets/cli",
     "dev": "turbo run dev",
     "lint": "turbo run lint",

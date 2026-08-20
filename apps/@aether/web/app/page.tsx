@@ -48,8 +48,8 @@ export default function HomePage() {
           协同即架构，AI 是一等成员。
         </p>
         <div className="mt-10 flex flex-wrap gap-3">
-          <Link href="/realms" className="btn-primary">
-            进入 Realm
+          <Link href="/dashboard" className="btn-primary">
+            进入 Dashboard
           </Link>
           <a
             href="https://github.com/CodeSky0/Aether"
