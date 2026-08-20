@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "vercel-build": "pnpm exec turbo run build --filter=@aether/web^... && pnpm --filter @aether/editor-host build && rm -rf apps/@aether/web/public/editor && mkdir -p apps/@aether/web/public/editor && cp -R apps/@aether/editor-host/dist/. apps/@aether/web/public/editor/ && pnpm --filter @aether/web build && test -d apps/@aether/web/.next && test -d apps/@aether/web/.next/static && test -f apps/@aether/web/.next/BUILD_ID && test -f apps/@aether/web/.next/routes-manifest.json && cp apps/@aether/web/.next/routes-manifest.json apps/@aether/web/.next/routes-manifest-deterministic.json && test -f apps/@aether/web/.next/routes-manifest-deterministic.json && rm -rf .next && cp -R apps/@aether/web/.next .next && test -f .next/BUILD_ID && test -d .next/static && test -f .next/routes-manifest.json && test -f .next/routes-manifest-deterministic.json",
+    "vercel-build": "pnpm exec turbo run build --filter=@aether/web^... && pnpm --filter @aether/editor-host build && rm -rf apps/@aether/web/public/editor && mkdir -p apps/@aether/web/public/editor && cp -R apps/@aether/editor-host/dist/. apps/@aether/web/public/editor/ && pnpm --filter @aether/web build && test -d .next && test -d .next/static && test -f .next/BUILD_ID && test -f .next/routes-manifest.json && cp .next/routes-manifest.json .next/routes-manifest-deterministic.json && test -f .next/routes-manifest-deterministic.json",
     "changeset": "pnpm dlx @changesets/cli",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
