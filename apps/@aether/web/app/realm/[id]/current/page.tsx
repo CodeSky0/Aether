@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation'
 
 import CurrentWorkspace from '@/components/current-workspace'
 import NavShell from '@/components/nav-shell'
+import { resolveCurrentActor } from '@/lib/auth-guard'
 import { listRealmActors } from '@/lib/entities'
 import { ensureDefaultProject, getRealm } from '@/lib/realms'
 import { listThreads } from '@/lib/threads'
@@ -20,6 +21,9 @@ export default async function CurrentPage({ params }: PageProps) {
   const realm = await getRealm(realmId)
   if (!realm) notFound()
 
+  // 获取当前会话的 Actor 信息，用于传递给编辑器（跨域跳转所需）
+  const currentActor = await resolveCurrentActor()
+
   const [threads, actors, defaultProjectId] = await Promise.all([
     listThreads(realmId),
     listRealmActors(realmId),
@@ -34,6 +38,9 @@ export default async function CurrentPage({ params }: PageProps) {
         threads={threads}
         actors={actors}
         defaultProjectId={defaultProjectId}
+        // 传递当前用户信息，用于构建编辑器 iframe URL
+        currentActorId={currentActor?.actorId ?? 'anonymous'}
+        currentActorName={actors.find(a => a.id === currentActor?.actorId)?.name ?? 'Guest'}
       />
     </NavShell>
   )

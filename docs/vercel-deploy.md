@@ -19,6 +19,10 @@ Aether monorepo 包含三个独立应用，分别部署为 **三个独立的 Ver
 │  (或自定义域名)   │  (或自定义域名)   │  (或自定义域名)    │
 └──────────────────┴──────────────────┴───────────────────┘
          │                  │                  │
+         │  iframe 嵌入     │  WebSocket 连接
+         │  (NEXT_PUBLIC_   │  (CONVERGE_SERVER_URL)
+         │   EDITOR_HOST_   │
+         │   URL)           │
          └──────────────────┼──────────────────┘
                             │
               ┌─────────────┴─────────────┐
@@ -29,8 +33,8 @@ Aether monorepo 包含三个独立应用，分别部署为 **三个独立的 Ver
 
 | 项目 | 包路径 | 框架 | 说明 |
 |------|--------|------|------|
-| **aether-web** | `apps/@aether/web` | Next.js 16 | 主站点：登录、Dashboard、Realm 管理、Current 工作台 |
-| **aether-editor** | `apps/@aether/editor-host` | Vite 8 + React | 协同编辑器器 SPA（Yjs） |
+| **aether-web** | `apps/@aether/web` | Next.js 16 | 主站点：登录、Dashboard、Realm 管理、Current 工作台（通过 iframe 嵌入 Editor） |
+| **aether-editor** | `apps/@aether/editor-host` | Vite 8 + React | 协同编辑器 SPA（Yjs），接收 URL 参数获取上下文 |
 | **aether-converge** | `apps/@aether/converge-server` | Hocuspocus on Vercel Function | WebSocket 协同收敛服务 |
 
 ## 前置准备
@@ -213,18 +217,119 @@ apps/@aether/converge-server  cd ../.. && pnpm turbo run build --filter=@aether/
 
 ---
 
+## 跨域跳转与会话共享
+
+### Web 如何加载 Editor？
+
+Aether 采用 **iframe 嵌入**模式，Web 项目通过环境变量 `NEXT_PUBLIC_EDITOR_HOST_URL` 指向独立部署的 Editor 应用：
+
+```
+Web (aether.example.com)
+  └─ iframe src = "https://editor.aether.example.com?realmId=xxx&filePath=/README.md&actorId=user-123&actorName=Alice"
+       └─ Editor (独立 Vite SPA)
+```
+
+Editor Host 从 URL 查询参数解析上下文：
+- `realmId`: 当前 Realm 标识
+- `filePath`: 需要打开的文件路径
+- `actorId`: 当前用户 ID（用于 Presence 显示）
+- `actorName`: 当前用户显示名
+
+### 如何共享登录状态？
+
+由于 Web 和 Editor 是不同的 Vercel 项目（不同域名），默认情况下它们的 Cookie 是隔离的。要实现共享登录状态，需要：
+
+#### 方案 A：父域名 Cookie（推荐）
+
+如果两个项目部署在同一父域名下（如 `aether.example.com` 和 `editor.example.com`），可以配置 Better-Auth 使用父域名 Cookie：
+
+```typescript
+// @aether/auth 配置中
+createAuth({
+  // ...
+  options: {
+    cookies: {
+      session: {
+        domain: '.example.com', // 父域名
+        secure: true,
+      }
+    }
+  }
+})
+```
+
+#### 方案 B：Editor 独立认证
+
+Editor Host 可以通过 Better-Auth 的 REST API 独立验证用户身份：
+
+1. 用户在 Web 登录后，Session Cookie 只在 Web 域有效
+2. Editor Host 加载时，通过 Better-Auth REST API（`/api/auth/session`）验证当前会话
+3. 如果 Web 和 Editor 使用相同的后端数据库，可以实现单点登录（SSO）
+
+#### 方案 C：Token 传递（最安全）
+
+通过一次性 Token 传递身份：
+
+1. Web 在生成 iframe URL 前，向后端请求一个临时 Token
+2. Token 通过 URL 参数传递给 Editor：`?token=xxx`
+3. Editor 验证 Token 后建立自己的会话
+
+> **注意**：当前实现使用**方案 A**（父域名 Cookie）。如果使用不同顶级域名（如 `aether.com` 和 `editor.io`），需要改用方案 B 或 C。
+
+### 配置示例
+
+#### 生产环境（同一父域名）
+
+| 项目 | 域名 | Cookie 域 |
+|------|------|-----------|
+| aether-web | `aether.example.com` | `.example.com` |
+| aether-editor | `editor.example.com` | `.example.com` |
+| aether-converge | `sync.example.com` | N/A (WebSocket) |
+
+需要设置的环境变量：
+
+**aether-web:**
+```
+NEXT_PUBLIC_EDITOR_HOST_URL=https://editor.example.com
+CONVERGE_SERVER_URL=https://sync.example.com
+BETTER_AUTH_URL=https://aether.example.com
+```
+
+**aether-editor (如果需要独立认证):**
+```
+NEXT_PUBLIC_APP_URL=https://editor.example.com
+BETTER_AUTH_URL=https://editor.example.com
+BETTER_AUTH_SECRET=<same as web>
+DATABASE_URL=<same as web>
+```
+
+#### 本地开发
+
+本地开发时，Editor Host 默认运行在 `http://localhost:5173`，Web 运行在 `http://localhost:3000`。由于都在 `localhost` 域下，Cookie 默认可以共享。
+
+在 Web 的 `.env.local` 中设置：
+```
+NEXT_PUBLIC_EDITOR_HOST_URL=http://localhost:5173
+```
+
+---
+
 ## 验证清单
 
 ### aether-web
 
 - [ ] 访问 `/login`，完成注册 → 登录 → 登出
 - [ ] 访问 `/dashboard`，创建 Realm，自动跳转到 `/realm/[id]/current`
-- [ ] Current 工作台三栏布局正常（文件树、编辑器、Entities）
+- [ ] Current 工作台三栏布局正常（文件树、编辑器 iframe、Entities）
+- [ ] 点击文件，iframe 正确加载对应的 Editor URL
+- [ ] 切换文件时，iframe 重新加载并显示新文件内容
 
 ### aether-editor
 
-- [ ] 访问根路径，编辑器 SPA 正常加载
+- [ ] 访问根路径，编辑器 SPA 正常加载（独立访问模式）
+- [ ] 通过 Web 嵌入访问（iframe），编辑器正确解析 URL 参数
 - [ ] 静态资源（JS/CSS）路径正确，无 404
+- [ ] Presence 状态显示正常（在线用户列表）
 
 ### aether-converge
 
@@ -264,6 +369,43 @@ Vercel Function 的 `maxDuration` 限制所致。Hobby 计划上限 300 秒，�
 ### 三个项目必须部署在同一 Vercel Team 下吗？
 
 不是必须，但推荐。同一 Team 下可共享环境变量（Environment Variables 支持跨项目复制），且 Preview Deployment 的域名互通更方便调试。
+
+### iframe 加载白屏或无法访问
+
+检查以下几点：
+1. **CORS 配置**：Editor Host 需要允许被 Web 域嵌入。在 `index.html` 中添加：
+   ```html
+   <meta http-equiv="Content-Security-Policy" content="frame-ancestors 'self' https://aether.example.com">
+   ```
+   或者在 Vercel 项目设置中配置 Security Headers。
+2. **iframe sandbox 属性**：当前实现使用了 `sandbox="allow-scripts allow-same-origin allow-forms"`，确保必要的权限已开启。
+3. **Cookie SameSite 策略**：跨站 iframe 时，Cookie 需要设置为 `SameSite=None; Secure`。
+
+### iframe 中用户会话丢失
+
+如果 Web 和 Editor 使用不同父域名（如 `aether.com` 和 `editor.io`），Cookie 默认无法跨域共享。解决方案：
+1. **使用方案 C（Token 传递）**：在生成 iframe URL 时附带临时 Token
+2. **Editor 独立调用 Better-Auth REST API**：在 Editor 初始化时验证会话
+
+### 本地开发如何调试跨域？
+
+本地开发时，Web 运行在 `http://localhost:3000`，Editor 运行在 `http://localhost:5173`。由于都在 `localhost` 域下，Cookie 可以正常共享。
+
+```bash
+# 终端 1：启动 Web
+cd apps/@aether/web && pnpm dev
+
+# 终端 2：启动 Editor
+cd apps/@aether/editor-host && pnpm dev
+
+# 终端 3：启动 Converge Server (可选)
+cd apps/@aether/converge-server && pnpm dev
+```
+
+在 Web 的 `.env.local` 中设置：
+```
+NEXT_PUBLIC_EDITOR_HOST_URL=http://localhost:5173
+```
 
 ### 本地开发
 

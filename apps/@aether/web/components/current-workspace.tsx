@@ -1,16 +1,15 @@
 // @aether/web · Current 工作区（核心环 Step 5-7 的承载界面）
-// 三栏布局：左 Files（文件树，V0.1 为静态清单，每个文件对应独立 Yjs 文档）
-//           中 Current 编辑器（Yjs 协同 + 远端光标）
+// 三栏布局：左 Files（文件树）
+//           中 Editor（通过 iframe 嵌入独立部署的 editor-host 应用）
 //           右 Entities（Human 成员 + AI Entity 同列）
 // 底部 Threads：与编辑器选区联动的叙事单元。
 // Yohaku：serif 面板标题、mono 代码指纹、border-border 1px 分隔（无阴影），
 // 梅红只出现在激活文件、活跃 Entity 脉冲与主 CTA。
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 
-import CurrentEditor from '@/components/current-editor'
 import type { RealmActorRow } from '@/lib/entities'
 import { createThread, type ThreadRow } from '@/lib/threads'
 
@@ -34,6 +33,17 @@ interface CurrentWorkspaceProps {
   threads: ThreadRow[]
   actors: RealmActorRow[]
   defaultProjectId: string
+  currentActorId: string
+  currentActorName: string
+}
+
+/**
+ * 从环境变量获取 Editor Host URL
+ * - 生产环境：NEXT_PUBLIC_EDITOR_HOST_URL (如 https://editor.aether.example.com)
+ * - 开发环境：默认 http://localhost:5173
+ */
+function getEditorHostUrl(): string {
+  return process.env.NEXT_PUBLIC_EDITOR_HOST_URL || 'http://localhost:5173'
 }
 
 export default function CurrentWorkspace({
@@ -42,9 +52,21 @@ export default function CurrentWorkspace({
   threads,
   actors,
   defaultProjectId,
+  currentActorId,
+  currentActorName,
 }: CurrentWorkspaceProps) {
   const [activePath, setActivePath] = useState<string>(WORKSPACE_FILES[0].path)
   const [selection, setSelection] = useState<SelectionInfo | null>(null)
+
+  // 构建编辑器 iframe URL，包含必要的上下文参数
+  const editorUrl = useMemo(() => {
+    const url = new URL(getEditorHostUrl())
+    url.searchParams.set('realmId', realmId)
+    url.searchParams.set('filePath', activePath)
+    url.searchParams.set('actorId', currentActorId)
+    url.searchParams.set('actorName', currentActorName)
+    return url.toString()
+  }, [realmId, activePath, currentActorId, currentActorName])
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -80,7 +102,7 @@ export default function CurrentWorkspace({
           </nav>
         </aside>
 
-        {/* 中：Current 编辑器 */}
+        {/* 中：Editor (iframe 嵌入独立部署的 editor-host) */}
         <section className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-neutral-1 px-4">
             <span className="truncate font-mono text-label-12 text-neutral-7">
@@ -90,13 +112,14 @@ export default function CurrentWorkspace({
               {realmName}
             </span>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            <CurrentEditor
+          <div className="min-h-0 flex-1 overflow-hidden bg-neutral-1">
+            {/* iframe 加载独立部署的 editor-host 应用 */}
+            <iframe
               key={activePath}
-              realmId={realmId}
-              threadId={activePath}
-              docRef={`file:${realmId}:${activePath}`}
-              onSelectionChange={setSelection}
+              src={editorUrl}
+              className="h-full w-full border-0"
+              title={`Aether Editor - ${activePath}`}
+              sandbox="allow-scripts allow-same-origin allow-forms"
             />
           </div>
         </section>
