@@ -2,5 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@aether/web"
+  "buildCommand": "cd ../.. && if test \"$VERCEL_ENV\" = \"production\"; then echo '⏳ Running production migration...' && pnpm --filter @aether/db db:migrate || exit 1; else echo '⏭️  Skipping migration (not production)'; fi && pnpm turbo run build --filter=@aether/web"
 }

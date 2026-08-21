@@ -61,30 +61,28 @@ openssl rand -base64 32
 
 ## 部署步骤
 
-### Step 1: 数据库迁移
+### Step 0: 自动数据库迁移（已内置）
 
-在部署应用之前，先确保数据库 schema 已就绪：
+生产部署时会自动执行数据库迁移，无需手动操作。详见 [自动数据库迁移](#自动数据库迁移) 章节。
 
+如需手动运行迁移：
 ```bash
-# 本地执行迁移（或配置 CI/CD 在部署前运行）
 pnpm db:migrate
 ```
 
-生产环境也可在 Vercel 部署后通过 Serverless Function 自动迁移。
-
 ---
 
-### Step 2: 部署 aether-web
+### Step 1: 部署 aether-web
 
 1. Vercel 控制台 → **Add New → Project**
 2. 导入仓库，**Root Directory** 设为 `apps/@aether/web`
 3. Framework Preset 自动识别为 **Next.js**
-4. 构建命令和输出目录无需手动设置（已由 `vercel.json` 配置）：
+4. 构建命令和输出目录无需手动设置（已由 `vercel.json` 配置，含自动迁移逻辑）：
    ```json
    {
      "framework": "nextjs",
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../.. && pnpm turbo run build --filter=@aether/web"
+     "buildCommand": "cd ../.. && if test \"$VERCEL_ENV\" = \"production\"; then pnpm --filter @aether/db db:migrate || exit 1; fi && pnpm turbo run build --filter=@aether/web"
    }
    ```
 5. 配置环境变量（见下方 [环境变量](#环境变量) 章节）
@@ -118,12 +116,12 @@ pnpm db:migrate
 1. **Add New → Project** → 导入同一仓库
 2. **Root Directory** 设为 `apps/@aether/converge-server`
 3. Framework Preset 选择 **Other**
-4. `vercel.json` 已配置：
+4. `vercel.json` 已配置（含自动迁移逻辑）：
    ```json
    {
      "framework": null,
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../.. && pnpm turbo run build --filter=@aether/converge-server",
+     "buildCommand": "cd ../.. && if test \"$VERCEL_ENV\" = \"production\"; then pnpm --filter @aether/db db:migrate || exit 1; fi && pnpm turbo run build --filter=@aether/converge-server",
      "functions": {
        "api/ws.ts": {
          "memory": 1024,
@@ -168,6 +166,8 @@ pnpm db:migrate
 | `BETTER_AUTH_URL` | 站点公开地址 | `https://aether.example.com` |
 | `BETTER_AUTH_SECRET` | 会话签名密钥（`openssl rand -base64 32`） | |
 | `NEXT_PUBLIC_APP_URL` | 前端公开的应用地址 | `https://aether.example.com` |
+| `NEXT_PUBLIC_EDITOR_HOST_URL` | Editor Host 应用的公开地址（iframe 嵌入） | `https://editor.aether.example.com` |
+| `CONVERGE_SERVER_URL` | Converge Server WebSocket 地址 | `wss://sync.aether.example.com` |
 
 ### aether-web（可选）
 
@@ -201,19 +201,62 @@ pnpm db:migrate
 
 ---
 
+## 自动数据库迁移
+
+Vercel 部署时，`aether-web` 和 `aether-converge` 会在**生产环境**（`VERCEL_ENV=production`）自动执行数据库迁移。
+
+### 触发规则
+
+| 环境 | VERCEL_ENV | 迁移行为 |
+|------|------------|----------|
+| Production | `production` | ✅ 自动执行 |
+| Preview | `preview` | ❌ 跳过 |
+| Development | `development` | ❌ 跳过 |
+
+### 工作原理
+
+在 `vercel.json` 的 `buildCommand` 中嵌入了条件迁移逻辑：
+
+```
+buildCommand: cd ../.. && if test "$VERCEL_ENV" = "production"; then \
+  pnpm --filter @aether/db db:migrate || exit 1; \
+fi && pnpm turbo run build --filter=@aether/web
+```
+
+### 手动触发迁移
+
+如果需要在 Preview 环境或手动运行迁移，可以设置环境变量 `RUN_DB_MIGRATION=true` 并重新部署。
+
+### 迁移特性
+
+- **幂等性**：`drizzle-kit migrate` 会自动跳过已应用的迁移
+- **安全性**：迁移失败会中断构建（`|| exit 1`），防止应用在 schema 不匹配时部署
+- **可追溯**：迁移记录存储在 `packages/@aether/db/drizzle/` 目录
+
+---
+
 ## Turborepo 构建说明
 
 三个项目共享同一 monorepo，通过 Turborepo 按 `--filter` 选择性构建：
 
 ```
-Root Directory (Vercel)    Build Command
-─────────────────────────────────────────────────────────────
-apps/@aether/web           cd ../.. && pnpm turbo run build --filter=@aether/web
-apps/@aether/editor-host   cd ../.. && AETHER_EDITOR_HOST_BASE=/ pnpm turbo run build --filter=@aether/editor-host
-apps/@aether/converge-server  cd ../.. && pnpm turbo run build --filter=@aether/converge-server
+Root Directory (Vercel)         Build Command
+─────────────────────────────────────────────────────────────────────────────
+apps/@aether/web              cd ../.. && if test "$VERCEL_ENV" = "production"; \
+                                   then pnpm --filter @aether/db db:migrate || exit 1; \
+                                   fi && pnpm turbo run build --filter=@aether/web
+
+apps/@aether/editor-host        cd ../.. && AETHER_EDITOR_HOST_BASE=/ \
+                                   pnpm turbo run build --filter=@aether/editor-host
+
+apps/@aether/converge-server    cd ../.. && if test "$VERCEL_ENV" = "production"; \
+                                   then pnpm --filter @aether/db db:migrate || exit 1; \
+                                   fi && pnpm turbo run build --filter=@aether/converge-server
 ```
 
 `turbo.json` 中 `build` 任务声明了 `dependsOn: ["^build"]`，确保共享包（`@aether/db`、`@aether/ui` 等）先于应用构建。
+
+`DATABASE_URL`、`DATABASE_URL_UNPOOLED` 等环境变量已在 `turbo.json` 的 `globalEnv` 中声明，确保迁移时可用。
 
 ---
 
