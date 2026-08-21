@@ -135,6 +135,27 @@ pnpm db:migrate
 
 > **WebSocket 限制**：Vercel Function 对 WebSocket 连接有最大时长限制 —— Hobby 300 秒，Pro 最大 800 秒。连接到期后客户端通过 Yjs 重连机制自动恢复。如需长驻连接，converge-server 可独立部署为 Node.js 进程。
 
+### Converge Server 端点说明
+
+Converge Server 是纯 WebSocket 服务，没有前端页面。
+
+| 路径 | 方法 | 说明 |
+|------|------|------|
+| `/api/ws` | WebSocket | Hocuspocus 收敛服务（核心端点） |
+| `/health` | GET | 健康检查，返回服务状态 JSON |
+
+⚠️ **访问根路径 `/` 返回 404 是正常的** —— 这是 WebSocket 服务，不是普通网站。
+
+测试连接：
+```bash
+# 健康检查
+curl https://sync.cosky.top/health
+# → {"status":"ok","service":"aether-converge-server","websocketEndpoint":"/api/ws",...}
+
+# WebSocket 端点（浏览器或 wscat）
+wscat -c "wss://sync.cosky.top/api/ws"
+```
+
 ---
 
 ### Step 5: 配置域名（可选）
