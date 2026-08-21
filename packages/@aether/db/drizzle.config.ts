@@ -9,16 +9,35 @@ const authSchemaPath = fileURLToPath(
   new URL('../../@aether/auth/src/schema.ts', import.meta.url),
 )
 
+/**
+ * 解析数据库连接 URL。
+ * 优先级：
+ *   1. DATABASE_URL_UNPOOLED   — 手工配置的直连地址
+ *   2. POSTGRES_URL_NON_POOLING — Vercel Postgres 自动注入的直连地址（推荐）
+ *   3. DATABASE_URL            — 通用连接地址
+ *   4. POSTGRES_URL            — Vercel Postgres 自动注入的 pooled 地址
+ *   5. AETHER_DATABASE_URL     — 回填脚本专用
+ */
+function resolveDatabaseUrl(): string {
+  const url =
+    process.env.DATABASE_URL_UNPOOLED ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.AETHER_DATABASE_URL
+  if (!url) {
+    throw new Error(
+      '数据库连接未配置。请设置 DATABASE_URL、POSTGRES_URL_NON_POOLING 或 DATABASE_URL_UNPOOLED。',
+    )
+  }
+  return url
+}
+
 export default defineConfig({
   dialect: 'postgresql',
   schema: ['./src/schema.ts', authSchemaPath],
   out: './drizzle',
   dbCredentials: {
-    // Vercel 部署使用直连地址执行迁移；本地兼容历史变量。
-    url:
-      process.env.DATABASE_URL_UNPOOLED ??
-      process.env.POSTGRES_URL_NON_POOLING ??
-      process.env.DATABASE_URL ??
-      process.env.AETHER_DATABASE_URL!,
+    url: resolveDatabaseUrl(),
   },
 })
