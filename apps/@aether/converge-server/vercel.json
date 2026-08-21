@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && sh scripts/vercel-build.sh && pnpm turbo run build --filter=@aether/converge-server",
+  "buildCommand": "cd ../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/converge-server",
   "functions": {
     "api/ws.ts": {
       "memory": 1024,

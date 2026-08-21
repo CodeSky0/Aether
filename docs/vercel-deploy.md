@@ -82,7 +82,7 @@ pnpm db:migrate
    {
      "framework": "nextjs",
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../.. && sh scripts/vercel-build.sh && pnpm turbo run build --filter=@aether/web"
+     "buildCommand": "cd ../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/web"
    }
    ```
 5. 配置环境变量（见下方 [环境变量](#环境变量) 章节）
@@ -121,7 +121,7 @@ pnpm db:migrate
    {
      "framework": null,
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../.. && sh scripts/vercel-build.sh && pnpm turbo run build --filter=@aether/converge-server",
+     "buildCommand": "cd ../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/converge-server",
      "functions": {
        "api/ws.ts": {
          "memory": 1024,
@@ -215,19 +215,21 @@ Vercel 部署时，`aether-web` 和 `aether-converge` 会在**生产环境**（`
 
 ### 工作原理
 
-迁移逻辑抽取到独立脚本 `scripts/vercel-build.sh`，`buildCommand` 调用该脚本：
+迁移逻辑抽取到 Node.js 脚本 `scripts/vercel-build.mjs`，`buildCommand` 调用该脚本：
 
 ```
-buildCommand: cd ../.. && sh scripts/vercel-build.sh && pnpm turbo run build --filter=@aether/web
+buildCommand: cd ../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/web
 ```
 
 脚本内容：
-```bash
-# scripts/vercel-build.sh
-if [ "$VERCEL_ENV" = "production" ]; then
-  pnpm --filter @aether/db db:migrate
-fi
+```javascript
+// scripts/vercel-build.mjs
+if (process.env.VERCEL_ENV === 'production') {
+  execSync('pnpm --filter @aether/db db:migrate', { stdio: 'inherit' })
+}
 ```
+
+> 使用 Node.js 而非 Shell 脚本是为了兼容 Vercel 的 Linux 构建环境，避免 `sh`/`bash` 命令找不到或换行符问题。
 
 ### 手动触发迁移
 
@@ -248,13 +250,13 @@ fi
 ```
 Root Directory (Vercel)         Build Command
 ─────────────────────────────────────────────────────────────────────────────
-apps/@aether/web              cd ../.. && sh scripts/vercel-build.sh \
+apps/@aether/web              cd ../.. && node scripts/vercel-build.mjs \
                                    && pnpm turbo run build --filter=@aether/web
 
 apps/@aether/editor-host       cd ../.. && AETHER_EDITOR_HOST_BASE=/ \
                                    pnpm turbo run build --filter=@aether/editor-host
 
-apps/@aether/converge-server  cd ../.. && sh scripts/vercel-build.sh \
+apps/@aether/converge-server  cd ../.. && node scripts/vercel-build.mjs \
                                    && pnpm turbo run build --filter=@aether/converge-server
 ```
 
