@@ -4,10 +4,15 @@
 import { execSync } from 'node:child_process'
 
 const env = process.env.VERCEL_ENV || 'development'
+const cwd = process.cwd()
+console.log(`[migration] env=${env} cwd=${cwd}`)
 
 if (env === 'production') {
   console.log('[migration] Running production migration...')
   try {
+    const urlMasked = (process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || 'no-url-configured')
+      .replace(/\/\/[^:]+:[^@]+@/, '//***:***@')
+    console.log(`[migration] DB URL source: ${urlMasked}`)
     execSync('pnpm --filter @aether/db db:migrate', { stdio: 'inherit' })
     console.log('[migration] Complete')
   } catch (err) {

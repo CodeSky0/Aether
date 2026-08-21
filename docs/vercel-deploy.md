@@ -82,7 +82,7 @@ pnpm db:migrate
    {
      "framework": "nextjs",
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../.. && node ../scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/web"
+     "buildCommand": "cd ../../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/web"
    }
    ```
 5. 配置环境变量（见下方 [环境变量](#环境变量) 章节）
@@ -121,7 +121,7 @@ pnpm db:migrate
    {
      "framework": null,
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../.. && node ../scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/converge-server",
+     "buildCommand": "cd ../../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/converge-server",
      "functions": {
        "api/ws.ts": {
          "memory": 1024,
@@ -250,17 +250,17 @@ if (process.env.VERCEL_ENV === 'production') {
 ```
 Root Directory (Vercel)         Build Command
 ─────────────────────────────────────────────────────────────────────────────
-apps/@aether/web              cd ../.. && node ../scripts/vercel-build.mjs \
+apps/@aether/web              cd ../../.. && node scripts/vercel-build.mjs \
                                    && pnpm turbo run build --filter=@aether/web
 
-apps/@aether/editor-host       cd ../.. && AETHER_EDITOR_HOST_BASE=/ \
+apps/@aether/editor-host       cd ../../.. && AETHER_EDITOR_HOST_BASE=/ \
                                    pnpm turbo run build --filter=@aether/editor-host
 
-apps/@aether/converge-server  cd ../.. && node ../scripts/vercel-build.mjs \
+apps/@aether/converge-server  cd ../../.. && node scripts/vercel-build.mjs \
                                    && pnpm turbo run build --filter=@aether/converge-server
 ```
 
-> **注意**：Vercel 中 `Root Directory` 指向 `apps/@aether/converge-server`，构建时 `cd ../..` 进入 `apps/`，脚本位于仓库根 `scripts/`，因此用 `../scripts/` 引用。`pnpm turbo` 会自动向上查找 `turbo.json` 所在的仓库根。
+> **路径说明**：Vercel `Root Directory` 设为 `apps/@aether/<app>`（3 层深度），`cd ../../..` 直接跳转到仓库根目录。从根目录运行 `pnpm turbo` 可正确解析 workspace 结构。
 
 `turbo.json` 中 `build` 任务声明了 `dependsOn: ["^build"]`，确保共享包（`@aether/db`、`@aether/ui` 等）先于应用构建。
 

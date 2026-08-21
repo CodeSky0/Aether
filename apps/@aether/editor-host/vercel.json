@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && AETHER_EDITOR_HOST_BASE=/ pnpm turbo run build --filter=@aether/editor-host",
+  "buildCommand": "cd ../../.. && AETHER_EDITOR_HOST_BASE=/ pnpm turbo run build --filter=@aether/editor-host",
   "outputDirectory": "dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
