@@ -82,7 +82,7 @@ pnpm db:migrate
    {
      "framework": "nextjs",
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../.. && if test \"$VERCEL_ENV\" = \"production\"; then pnpm --filter @aether/db db:migrate || exit 1; fi && pnpm turbo run build --filter=@aether/web"
+     "buildCommand": "cd ../.. && sh scripts/vercel-build.sh && pnpm turbo run build --filter=@aether/web"
    }
    ```
 5. 配置环境变量（见下方 [环境变量](#环境变量) 章节）
@@ -121,7 +121,7 @@ pnpm db:migrate
    {
      "framework": null,
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../.. && if test \"$VERCEL_ENV\" = \"production\"; then pnpm --filter @aether/db db:migrate || exit 1; fi && pnpm turbo run build --filter=@aether/converge-server",
+     "buildCommand": "cd ../.. && sh scripts/vercel-build.sh && pnpm turbo run build --filter=@aether/converge-server",
      "functions": {
        "api/ws.ts": {
          "memory": 1024,
@@ -215,12 +215,18 @@ Vercel 部署时，`aether-web` 和 `aether-converge` 会在**生产环境**（`
 
 ### 工作原理
 
-在 `vercel.json` 的 `buildCommand` 中嵌入了条件迁移逻辑：
+迁移逻辑抽取到独立脚本 `scripts/vercel-build.sh`，`buildCommand` 调用该脚本：
 
 ```
-buildCommand: cd ../.. && if test "$VERCEL_ENV" = "production"; then \
-  pnpm --filter @aether/db db:migrate || exit 1; \
-fi && pnpm turbo run build --filter=@aether/web
+buildCommand: cd ../.. && sh scripts/vercel-build.sh && pnpm turbo run build --filter=@aether/web
+```
+
+脚本内容：
+```bash
+# scripts/vercel-build.sh
+if [ "$VERCEL_ENV" = "production" ]; then
+  pnpm --filter @aether/db db:migrate
+fi
 ```
 
 ### 手动触发迁移
@@ -242,16 +248,14 @@ fi && pnpm turbo run build --filter=@aether/web
 ```
 Root Directory (Vercel)         Build Command
 ─────────────────────────────────────────────────────────────────────────────
-apps/@aether/web              cd ../.. && if test "$VERCEL_ENV" = "production"; \
-                                   then pnpm --filter @aether/db db:migrate || exit 1; \
-                                   fi && pnpm turbo run build --filter=@aether/web
+apps/@aether/web              cd ../.. && sh scripts/vercel-build.sh \
+                                   && pnpm turbo run build --filter=@aether/web
 
-apps/@aether/editor-host        cd ../.. && AETHER_EDITOR_HOST_BASE=/ \
+apps/@aether/editor-host       cd ../.. && AETHER_EDITOR_HOST_BASE=/ \
                                    pnpm turbo run build --filter=@aether/editor-host
 
-apps/@aether/converge-server    cd ../.. && if test "$VERCEL_ENV" = "production"; \
-                                   then pnpm --filter @aether/db db:migrate || exit 1; \
-                                   fi && pnpm turbo run build --filter=@aether/converge-server
+apps/@aether/converge-server  cd ../.. && sh scripts/vercel-build.sh \
+                                   && pnpm turbo run build --filter=@aether/converge-server
 ```
 
 `turbo.json` 中 `build` 任务声明了 `dependsOn: ["^build"]`，确保共享包（`@aether/db`、`@aether/ui` 等）先于应用构建。
