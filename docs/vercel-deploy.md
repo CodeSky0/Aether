@@ -82,7 +82,7 @@ pnpm db:migrate
    {
      "framework": "nextjs",
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/web"
+     "buildCommand": "cd ../.. && node ../scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/web"
    }
    ```
 5. 配置环境变量（见下方 [环境变量](#环境变量) 章节）
@@ -121,7 +121,7 @@ pnpm db:migrate
    {
      "framework": null,
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/converge-server",
+     "buildCommand": "cd ../.. && node ../scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/converge-server",
      "functions": {
        "api/ws.ts": {
          "memory": 1024,
@@ -152,7 +152,7 @@ pnpm db:migrate
 绑定后需更新 Web 项目的环境变量：
 - `BETTER_AUTH_URL` → `https://aether.example.com`
 - `NEXT_PUBLIC_APP_URL` → `https://aether.example.com`
-- `CONVERGE_SERVER_URL` → `https://sync.example.com`
+- `CONVERGE_SERVER_URL` → `wss://sync.example.com`
 
 ---
 
@@ -250,15 +250,17 @@ if (process.env.VERCEL_ENV === 'production') {
 ```
 Root Directory (Vercel)         Build Command
 ─────────────────────────────────────────────────────────────────────────────
-apps/@aether/web              cd ../.. && node scripts/vercel-build.mjs \
+apps/@aether/web              cd ../.. && node ../scripts/vercel-build.mjs \
                                    && pnpm turbo run build --filter=@aether/web
 
 apps/@aether/editor-host       cd ../.. && AETHER_EDITOR_HOST_BASE=/ \
                                    pnpm turbo run build --filter=@aether/editor-host
 
-apps/@aether/converge-server  cd ../.. && node scripts/vercel-build.mjs \
+apps/@aether/converge-server  cd ../.. && node ../scripts/vercel-build.mjs \
                                    && pnpm turbo run build --filter=@aether/converge-server
 ```
+
+> **注意**：Vercel 中 `Root Directory` 指向 `apps/@aether/converge-server`，构建时 `cd ../..` 进入 `apps/`，脚本位于仓库根 `scripts/`，因此用 `../scripts/` 引用。`pnpm turbo` 会自动向上查找 `turbo.json` 所在的仓库根。
 
 `turbo.json` 中 `build` 任务声明了 `dependsOn: ["^build"]`，确保共享包（`@aether/db`、`@aether/ui` 等）先于应用构建。
 
@@ -340,7 +342,7 @@ Editor Host 可以通过 Better-Auth 的 REST API 独立验证用户身份：
 **aether-web:**
 ```
 NEXT_PUBLIC_EDITOR_HOST_URL=https://editor.example.com
-CONVERGE_SERVER_URL=https://sync.example.com
+CONVERGE_SERVER_URL=wss://sync.example.com
 BETTER_AUTH_URL=https://aether.example.com
 ```
 
