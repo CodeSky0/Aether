@@ -3,6 +3,7 @@
   "framework": null,
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "cd ../../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/converge-server",
+  "outputDirectory": ".",
   "functions": {
     "api/ws.ts": {
       "memory": 1024,
