@@ -3,7 +3,7 @@
 import type * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
 import { createRealmDoc, docRefForRealm, getOrCreateText } from './doc'
-import { BroadcastChannelProvider, type CurrentProvider } from './provider'
+import { createProvider, type CurrentProvider } from './provider'
 import { PresenceChannel } from './presence'
 import {
   DriftPersistence,
@@ -19,6 +19,8 @@ export interface HostInit {
   actorId: string
   /** 默认打开的文件路径 */
   filePath: string
+  /** converge-server WebSocket 地址（如 wss://sync.cosky.top/api/ws） */
+  convergeUrl?: string
   /** 启用 Drift 本地持久化；缺省关闭（M1 Drift Persistence） */
   drift?: {
     enabled?: boolean
@@ -50,7 +52,17 @@ export class EditorHost {
       lastSeenAt: Date.now(),
     })
 
-    this.provider = new BroadcastChannelProvider(this.doc, awareness)
+    // 根据 convergeUrl 选择 Provider：
+    // - 有 convergeUrl → Hocuspocus WebSocket Provider（生产环境）
+    // - 无 convergeUrl → BroadcastChannel Provider（本地开发/离线模式）
+    const providerOptions: Parameters<typeof createProvider>[2] = {
+      docName: docRef,
+    }
+    if (init.convergeUrl) {
+      providerOptions.convergeUrl = init.convergeUrl
+    }
+    providerOptions.parameters = { actorId: init.actorId }
+    this.provider = createProvider(this.doc, awareness, providerOptions)
 
     if (init.drift?.enabled) {
       const driftInit = init.drift

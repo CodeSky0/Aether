@@ -10,7 +10,12 @@ export {
   type DriftStore,
 } from './core/drift'
 export { EditorHost, type HostInit } from './core/host'
-export { BroadcastChannelProvider, type CurrentProvider } from './core/provider'
+export {
+  BroadcastChannelProvider,
+  HocuspocusProviderAdapter,
+  createProvider,
+  type CurrentProvider,
+} from './core/provider'
 export {
   createRealmDoc,
   docRefForRealm,

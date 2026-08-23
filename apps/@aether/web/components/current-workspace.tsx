@@ -46,6 +46,15 @@ function getEditorHostUrl(): string {
   return process.env.NEXT_PUBLIC_EDITOR_HOST_URL || 'http://localhost:5173'
 }
 
+/**
+ * 从环境变量获取 Converge Server WebSocket URL
+ * - 生产环境：NEXT_PUBLIC_CONVERGE_SERVER_URL (如 wss://sync.aether.example.com/api/ws)
+ * - 开发环境：默认 ws://localhost:1234/api/ws
+ */
+function getConvergeUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_CONVERGE_SERVER_URL || undefined
+}
+
 export default function CurrentWorkspace({
   realmId,
   realmName,
@@ -65,6 +74,10 @@ export default function CurrentWorkspace({
     url.searchParams.set('filePath', activePath)
     url.searchParams.set('actorId', currentActorId)
     url.searchParams.set('actorName', currentActorName)
+    const convergeUrl = getConvergeUrl()
+    if (convergeUrl) {
+      url.searchParams.set('convergeUrl', convergeUrl)
+    }
     return url.toString()
   }, [realmId, activePath, currentActorId, currentActorName])
 
