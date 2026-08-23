@@ -1,0 +1,32 @@
+# 依赖与构建产物
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/storybook-static
+**/out
+
+# 版本控制
+.git
+.gitignore
+**/.git
+.gitmodules
+
+# 环境与密钥（禁止进入镜像）
+.env
+.env.*
+*.local
+**/.env
+**/.env.*
+
+# 构建缓存与日志
+*.tsbuildinfo
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Docker 自身
+Dockerfile
+.dockerignore
