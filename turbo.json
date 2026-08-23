@@ -1,7 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalEnv": ["NODE_ENV", "NEXT_PUBLIC_*", "TURBO_TOKEN", "TURBO_TEAM", "BETTER_AUTH_URL", "BETTER_AUTH_SECRET", "DATABASE_URL", "DATABASE_URL_UNPOOLED", "POSTGRES_URL", "POSTGRES_URL_NON_POOLING", "REDIS_URL", "AETHER_OIDC_*"],
+  "globalEnv": ["NODE_ENV", "NEXT_PUBLIC_*", "TURBO_TOKEN", "TURBO_TEAM", "BETTER_AUTH_URL", "BETTER_AUTH_SECRET", "DATABASE_URL", "DATABASE_URL_UNPOOLED", "POSTGRES*", "PG*", "NEON_*", "REDIS_URL", "AETHER_OIDC_*"],
   "globalPassThroughEnv": ["CI", "VERCEL", "VERCEL_ENV", "VERCEL_GIT_COMMIT_SHA", "RUN_DB_MIGRATION"],
   "tasks": {
     "build": {
