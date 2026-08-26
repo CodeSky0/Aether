@@ -13,7 +13,8 @@ import type { ProviderConnectionState } from '@aether/current-sync'
  * - filePath: 默认打开的文件路径
  * - actorId: 当前用户标识
  * - actorName: 当前用户显示名
- * - convergeUrl: converge-server WebSocket 地址（如 wss://sync.cosky.top/api/ws）
+ * - convergeUrl: converge-server 地址（CF Worker 基址 wss://aether-converge.xxx.workers.dev，
+ *   或旧版完整端点 wss://sync.cosky.top/api/ws）
  */
 function getEditorContext() {
   const params = new URLSearchParams(window.location.search)

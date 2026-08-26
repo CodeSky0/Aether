@@ -1,0 +1,17 @@
+# @aether/converge-server · Cloudflare Workers 部署配置
+# 免费计划（无需信用卡）：Durable Objects 免费额度 + SQLite 后端存储
+# 部署：pnpm --filter @aether/converge-server deploy:cf
+name = "aether-converge"
+main = "cf/index.ts"
+compatibility_date = "2024-11-01"
+
+# 按文档（docName）分片的 Yjs 房间 Durable Object
+[[durable_objects.bindings]]
+name = "YJS_ROOM"
+class_name = "YjsRoom"
+
+# 免费计划仅支持 SQLite 存储后端的 Durable Object
+# （KV API —— storage.get/put/delete —— 在 SQLite 后端上照常可用）
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["YjsRoom"]

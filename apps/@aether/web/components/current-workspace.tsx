@@ -47,9 +47,10 @@ function getEditorHostUrl(): string {
 }
 
 /**
- * 从环境变量获取 Converge Server WebSocket URL
- * - 生产环境：NEXT_PUBLIC_CONVERGE_SERVER_URL (如 wss://sync.aether.example.com/api/ws)
- * - 开发环境：默认 ws://localhost:1234/api/ws
+ * 从环境变量获取 Converge Server 地址
+ * - 生产环境：NEXT_PUBLIC_CONVERGE_SERVER_URL（CF Worker 基址，
+ *   如 wss://aether-converge.xxx.workers.dev；editor-host 会按文档拼接 /ws/:docName）
+ * - 旧版完整端点（wss://sync.cosky.top/api/ws）在迁移期同样兼容
  */
 function getConvergeUrl(): string | undefined {
   return process.env.NEXT_PUBLIC_CONVERGE_SERVER_URL || undefined

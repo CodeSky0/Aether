@@ -19,7 +19,7 @@ export interface HostInit {
   actorId: string
   /** 默认打开的文件路径 */
   filePath: string
-  /** converge-server WebSocket 地址（如 wss://sync.cosky.top/api/ws） */
+  /** converge-server 地址：CF Worker 基址（wss://aether-converge.xxx.workers.dev）或旧版完整端点（wss://sync.cosky.top/api/ws） */
   convergeUrl?: string
   /** 启用 Drift 本地持久化；缺省关闭（M1 Drift Persistence） */
   drift?: {

@@ -181,6 +181,21 @@ export class HocuspocusProviderAdapter implements CurrentProvider {
 }
 
 /**
+ * 构建 converge-server WebSocket 端点。
+ * - Cloudflare Worker 部署（现行）：convergeUrl 为 Worker 基址
+ *   （如 wss://aether-converge.xxx.workers.dev），docName 编码后置于路径，
+ *   Worker 按路径将连接路由到对应的 YjsRoom Durable Object。
+ * - 旧版 Hocuspocus 单端点（wss://host/api/ws）：docName 在协议内传输，
+ *   URL 原样使用（迁移期兼容，直连 Node/Vercel 部署时生效）。
+ */
+export function buildConvergeEndpoint(baseUrl: string, docName: string): string {
+  const base = baseUrl.replace(/\/+$/, '')
+  // 已是完整端点（以 /ws 或 /api/ws 结尾）时直接使用
+  if (/\/(api\/)?ws\/?$/.test(base)) return base
+  return `${base}/ws/${encodeURIComponent(docName)}`
+}
+
+/**
  * 创建 Provider 实例。
  * 如果提供了 convergeUrl，使用 Hocuspocus WebSocket Provider；
  * 否则回退到 BroadcastChannel Provider（本地开发/离线模式）。
@@ -196,9 +211,10 @@ export function createProvider(
   } = {},
 ): CurrentProvider {
   if (options.convergeUrl) {
+    const docName = options.docName ?? doc.guid ?? 'aether-doc'
     const adapterOptions: ConstructorParameters<typeof HocuspocusProviderAdapter>[2] = {
-      url: options.convergeUrl,
-      name: options.docName ?? doc.guid ?? 'aether-doc',
+      url: buildConvergeEndpoint(options.convergeUrl, docName),
+      name: docName,
     }
     if (options.parameters) {
       adapterOptions.parameters = options.parameters
