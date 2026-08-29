@@ -5,6 +5,7 @@
 import { inviteRealmMember } from '@/app/actions/membership'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { useToast } from '@/components/ui/toast'
 
 interface InviteRealmMemberFormProps {
   realmId: string
@@ -18,26 +19,28 @@ export default function InviteRealmMemberForm({
   currentActorRole,
 }: InviteRealmMemberFormProps) {
   const router = useRouter()
+  const toast = useToast()
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<(typeof ROLES)[number]>('member')
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [sent, setSent] = useState(false)
   const canInvite = currentActorRole === 'owner' || currentActorRole === 'admin'
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!email.trim()) return
     setSubmitting(true)
-    setError(null)
-    setSent(false)
     try {
-      await inviteRealmMember({ realmId, email: email.trim(), role })
+      const result = await inviteRealmMember({ realmId, email: email.trim(), role })
+      if (!result.success) {
+        toast.error(result.error)
+        return
+      }
       setEmail('')
-      setSent(true)
+      toast.success(`邀请已发送至 ${email.trim()}`)
       router.refresh()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '邀请发送失败')
+      // 网络层异常兜底；业务错误已由 ActionResult 承载
+      toast.error(caught instanceof Error ? caught.message : '邀请发送失败')
     } finally {
       setSubmitting(false)
     }
@@ -81,10 +84,6 @@ export default function InviteRealmMemberForm({
         <button type="submit" disabled={submitting} className="btn-primary">
           {submitting ? '发送中…' : '发送邀请'}
         </button>
-        {error && <p className="w-full text-label-12 text-error">{error}</p>}
-        {sent && (
-          <p className="w-full text-label-12 text-success">邀请已发送。</p>
-        )}
       </form>
     </section>
   )

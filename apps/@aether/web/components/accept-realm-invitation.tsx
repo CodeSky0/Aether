@@ -23,8 +23,14 @@ export default function AcceptRealmInvitation({
     setError(null)
     try {
       const result = await acceptRealmInvitation({ invitationId })
-      router.push(`/realms/${result.realmId}`)
+      if (!result.success) {
+        setError(result.error)
+        setAccepting(false)
+        return
+      }
+      router.push(`/realms/${result.data.realmId}`)
     } catch (caught) {
+      // 网络层异常兜底；业务错误已由 ActionResult 承载
       setError(caught instanceof Error ? caught.message : '接受邀请失败')
       setAccepting(false)
     }

@@ -90,6 +90,44 @@ body {
   animation: yohaku-rise 0.24s ease-out both;
 }
 
+/* 复杂组件动效（戒律级克制：≤200ms，仅透明度与位移/微缩放） */
+/* Modal：fade + scale-up（backdrop 仅 fade） */
+@keyframes yohaku-modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes yohaku-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Toast：从右下角轻微滑入 */
+@keyframes yohaku-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@theme {
+  /* shadow-whisper：一层几乎不可闻的投影，用于 Modal / Toast 等浮层。
+     数值随暗色自动失效（暗面靠 ring 分层，不靠投影）。 */
+  --shadow-whisper: 0 1px 2px rgb(20 19 18 / 0.04), 0 8px 24px rgb(20 19 18 / 0.07);
+}
+
 @layer components {
   /* 表单控件统一形态：ring 分隔（戒律 07），focus 转梅红描边（戒律 04） */
   .field {

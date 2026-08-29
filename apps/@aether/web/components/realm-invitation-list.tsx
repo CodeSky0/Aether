@@ -8,6 +8,7 @@ import {
 } from '@/app/actions/membership'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { useToast } from '@/components/ui/toast'
 
 interface RealmInvitationListProps {
   realmId: string
@@ -28,20 +29,25 @@ export default function RealmInvitationList({
   currentActorRole,
 }: RealmInvitationListProps) {
   const router = useRouter()
+  const toast = useToast()
   const [revokingId, setRevokingId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   // 邀请列表对 member 可读，但撤销要求 owner / admin：无权者不显示按钮而不是点了才报错。
   const canRevoke =
     currentActorRole === 'owner' || currentActorRole === 'admin'
 
   async function revoke(invitationId: string) {
     setRevokingId(invitationId)
-    setError(null)
     try {
-      await revokeRealmInvitation({ realmId, invitationId })
+      const result = await revokeRealmInvitation({ realmId, invitationId })
+      if (!result.success) {
+        toast.error(result.error)
+        return
+      }
+      toast.success('邀请已撤销')
       router.refresh()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '撤销邀请失败')
+      // 网络层异常兜底；业务错误已由 ActionResult 承载
+      toast.error(caught instanceof Error ? caught.message : '撤销邀请失败')
     } finally {
       setRevokingId(null)
     }
@@ -52,7 +58,6 @@ export default function RealmInvitationList({
       <p className="text-caption-10 uppercase tracking-[1.5px] text-neutral-6">
         邀请记录
       </p>
-      {error && <p className="mt-3 text-label-12 text-error">{error}</p>}
       {invitations.length === 0 ? (
         <p className="mt-4 text-copy-14 text-neutral-6">暂无邀请。</p>
       ) : (

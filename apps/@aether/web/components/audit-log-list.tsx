@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { listAuditLogs, type AuditRow } from '@/lib/audit'
 import AuditRowItem from '@/components/audit-row'
+import { useToast } from '@/components/ui/toast'
 import type { ActorType, AuditAction } from '@aether/types'
 const PAGE_SIZE = 50
 interface AuditLogListProps {
@@ -25,6 +26,7 @@ const ACTION_OPTIONS: Array<{ value: AuditAction | ''; label: string }> = [
   { value: 'execute', label: '执行' },
 ]
 export default function AuditLogList({ realmId, initialLogs }: AuditLogListProps) {
+  const toast = useToast()
   const [logs, setLogs] = useState<AuditRow[]>(initialLogs)
   const [actorType, setActorType] = useState<ActorType | ''>('')
   const [action, setAction] = useState<AuditAction | ''>('')
@@ -42,19 +44,25 @@ export default function AuditLogList({ realmId, initialLogs }: AuditLogListProps
           ...(opts.actorType ? { actorType: opts.actorType } : {}),
           ...(opts.action ? { action: opts.action } : {}),
         })
-        if (opts.append) {
-          setLogs((prev) => [...prev, ...result])
-          setOffset((prev) => prev + result.length)
-        } else {
-          setLogs(result)
-          setOffset(result.length)
+        if (!result.success) {
+          // 读取失败保留现有列表；服务端已留痕，客户端以 Toast 反馈
+          toast.error('审计记录加载失败，请稍后重试。')
+          return
         }
-        setHasMore(result.length >= opts.limit)
+        const rows = result.data
+        if (opts.append) {
+          setLogs((prev) => [...prev, ...rows])
+          setOffset((prev) => prev + rows.length)
+        } else {
+          setLogs(rows)
+          setOffset(rows.length)
+        }
+        setHasMore(rows.length >= opts.limit)
       } finally {
         setLoading(false)
       }
     },
-    [realmId],
+    [realmId, toast],
   )
   // 过滤条件变化时重新加载
   useEffect(() => {

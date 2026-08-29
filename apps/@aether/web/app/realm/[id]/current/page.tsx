@@ -6,6 +6,8 @@ import { notFound } from 'next/navigation'
 import CurrentWorkspace from '@/components/current-workspace'
 import NavShell from '@/components/nav-shell'
 import { resolveCurrentActor } from '@/lib/auth-guard'
+import { unwrap, unwrapOr } from '@/lib/action-result'
+import { listAuditLogs } from '@/lib/audit'
 import { listRealmActors } from '@/lib/entities'
 import { ensureDefaultProject, getRealm } from '@/lib/realms'
 import { listThreads } from '@/lib/threads'
@@ -18,17 +20,24 @@ interface PageProps {
 
 export default async function CurrentPage({ params }: PageProps) {
   const { id: realmId } = await params
-  const realm = await getRealm(realmId)
+  const realm = unwrapOr(await getRealm(realmId), null)
   if (!realm) notFound()
 
   // 获取当前会话的 Actor 信息，用于传递给编辑器（跨域跳转所需）
   const currentActor = await resolveCurrentActor()
 
-  const [threads, actors, defaultProjectId] = await Promise.all([
-    listThreads(realmId),
-    listRealmActors(realmId),
-    ensureDefaultProject(realmId),
-  ])
+  const [threadsResult, actorsResult, auditResult, defaultProjectResult] =
+    await Promise.all([
+      listThreads(realmId),
+      listRealmActors(realmId),
+      // Entity 活动台账（右侧「活动」Tab）+ handoff 派生的数据源
+      listAuditLogs({ realmId, actorType: 'entity', limit: 50 }),
+      ensureDefaultProject(realmId),
+    ])
+  const threads = unwrapOr(threadsResult, [])
+  const actors = unwrapOr(actorsResult, [])
+  const entityAuditRows = unwrapOr(auditResult, [])
+  const defaultProjectId = unwrap(defaultProjectResult)
 
   return (
     <NavShell currentRealmName={realm.name} currentRealmId={realm.id}>
@@ -37,6 +46,7 @@ export default async function CurrentPage({ params }: PageProps) {
         realmName={realm.name}
         threads={threads}
         actors={actors}
+        entityAuditRows={entityAuditRows}
         defaultProjectId={defaultProjectId}
         // 传递当前用户信息，用于构建编辑器 iframe URL
         currentActorId={currentActor?.actorId ?? 'anonymous'}

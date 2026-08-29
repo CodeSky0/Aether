@@ -15,6 +15,20 @@
       "when": 1787055599273,
       "tag": "0001_bent_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787926673086,
+      "tag": "0002_perfect_bedlam",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788004483890,
+      "tag": "0003_gifted_christian_walker",
+      "breakpoints": true
     }
   ]
 }

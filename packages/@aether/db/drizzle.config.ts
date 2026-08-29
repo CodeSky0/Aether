@@ -8,6 +8,9 @@ import { defineConfig } from 'drizzle-kit'
 const authSchemaPath = fileURLToPath(
   new URL('../../@aether/auth/src/schema.ts', import.meta.url),
 )
+  // Windows 反斜杠会破坏 drizzle-kit 的 glob 匹配（曾导致 auth 表被判定为删除），
+  // 统一转成正斜杠绝对路径。
+  .replaceAll('\\', '/')
 
 /**
  * 解析数据库连接 URL。

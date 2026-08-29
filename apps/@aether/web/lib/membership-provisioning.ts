@@ -6,7 +6,9 @@ import { and, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { recordPermissionChange } from '@/lib/audit-write'
 import { isPlaceholderOrganization } from '@/lib/membership-utils'
+import { createLogger } from '@/lib/logger'
 
+const logger = createLogger('membership')
 const ROLE_PRIORITY = ['owner', 'admin', 'member'] as const
 type RealmRole = (typeof ROLE_PRIORITY)[number]
 const warnedUnknownRoles = new Set<string>()
@@ -20,8 +22,7 @@ export interface EnsureRealmMembershipInput {
 function warnUnknownRole(role: string): void {
   if (warnedUnknownRoles.has(role)) return
   warnedUnknownRoles.add(role)
-  // eslint-disable-next-line no-console
-  console.warn(`[membership] Unknown Better-Auth organization role skipped: ${role}`)
+  logger.warn('Unknown Better-Auth organization role skipped', { role })
 }
 
 export async function ensureRealmMembership(

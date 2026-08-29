@@ -79,8 +79,14 @@ export const realms = pgTable(
     updated_at: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // 软删除：非空即视为已删除；查询一律过滤 deleted_at IS NULL
+    deleted_at: timestamp('deleted_at', { withTimezone: true }),
   },
-  (t) => [uniqueIndex('realms_slug_uniq').on(t.slug)],
+  (t) => [
+    uniqueIndex('realms_slug_uniq').on(t.slug),
+    // 高频查询优化：Dashboard/列表按创建时间排序
+    index('realms_created_idx').on(t.created_at),
+  ],
 )
 // ---- projects（Realm 二级节点）----
 export const projects = pgTable(
@@ -162,6 +168,8 @@ export const entities = pgTable(
   },
   (t) => [
     index('entities_auth_identity_idx').on(t.auth_identity_id),
+    // 高频查询优化：Realm 面板与活跃计数按 realm_id 过滤/分组
+    index('entities_realm_idx').on(t.realm_id),
   ],
 )
 // ---- threads（线程：Context-Bound 叙事单元）----
@@ -190,9 +198,15 @@ export const threads = pgTable(
     updated_at: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // 软删除：非空即视为已删除；查询一律过滤 deleted_at IS NULL
+    deleted_at: timestamp('deleted_at', { withTimezone: true }),
   },
   (t) => [
     index('threads_realm_created_idx').on(t.realm_id, t.created_at),
+    // 高频查询优化：软删除过滤后的活跃线程列表
+    index('threads_realm_alive_idx')
+      .on(t.realm_id, t.created_at)
+      .where(sql`${t.deleted_at} IS NULL`),
     // 高频查询优化：按项目 + 状态筛选线程
     index('threads_project_status_idx').on(t.project_id, t.status),
     // 父子线程关系查询优化
@@ -220,7 +234,11 @@ export const currents = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index('currents_doc_ref_idx').on(t.doc_ref)],
+  (t) => [
+    index('currents_doc_ref_idx').on(t.doc_ref),
+    // 高频查询优化：Presence 心跳/轮询按 (realm_id, doc_ref) 定位
+    index('currents_realm_doc_idx').on(t.realm_id, t.doc_ref),
+  ],
 )
 // ---- crdt_updates（CRDT 更新日志：Current 增量落库，仅追加）----
 export const crdtUpdates = pgTable(
@@ -277,6 +295,38 @@ export const auditLog = pgTable(
     index('audit_log_actor_action_idx').on(t.actor_type, t.actor_id, t.action),
     // 按时间范围查询优化
     index('audit_log_action_created_idx').on(t.action, t.created_at),
+  ],
+)
+// ---- api_keys（Resonance 预备：外部插件/工具访问 Realm 的凭据）----
+// 明文密钥仅生成时返回一次；库内只存 sha256 哈希与展示前缀。
+// 吊销走软删除（revoked_at），保留审计线索。
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    // 展示名（如 "VS Code 插件"）
+    name: text('name').notNull(),
+    // 明文前 8 字符，用于列表识别（如 aeth_9f2K…）
+    key_prefix: text('key_prefix').notNull(),
+    // sha256(明文) 十六进制
+    key_hash: text('key_hash').notNull(),
+    created_by: text('created_by').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    last_used_at: timestamp('last_used_at', { withTimezone: true }),
+    // 软吊销：非空即失效；查询一律过滤 revoked_at IS NULL
+    revoked_at: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('api_keys_hash_uniq').on(t.key_hash),
+    index('api_keys_realm_idx').on(t.realm_id),
+    index('api_keys_realm_alive_idx')
+      .on(t.realm_id)
+      .where(sql`${t.revoked_at} IS NULL`),
   ],
 )
 // ---- dialogue_messages（对话消息：Thread 内嵌的 Entity 对话历史）----

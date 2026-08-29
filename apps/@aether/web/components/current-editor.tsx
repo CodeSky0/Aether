@@ -154,7 +154,10 @@ export default function CurrentEditor({
         serializedPayload: serialized,
         idempotencyKey: `${sessionIdRef.current}:${Date.now()}-${Math.random()}`,
       })
-        .then(() => setSaving(false))
+        .then((result) => {
+          setSaving(false)
+          if (!result.success) setError(result.error)
+        })
         .catch((err: unknown) => {
           setError(err instanceof Error ? err.message : String(err))
           setSaving(false)
@@ -181,7 +184,9 @@ export default function CurrentEditor({
             state.remoteCursor,
             100,
           )
-          for (const item of result.updates) {
+          if (!result.success) return
+          const replay = result.data
+          for (const item of replay.updates) {
             // P0-1 修复：不再按 actorId 前缀跳过自己的更新。
             // Yjs applyUpdate 对已包含内容幂等，服务端 (doc_ref, idempotency_key) 唯一约束已保证幂等。
             // 按 actorId 跳过会导致同默认 actorId 的多客户端互相看不到更新。
@@ -197,10 +202,10 @@ export default function CurrentEditor({
             }
             state.remoteCursor = item.seq
           }
-          if (result.nextCursor !== null) {
-            state.remoteCursor = result.nextCursor
+          if (replay.nextCursor !== null) {
+            state.remoteCursor = replay.nextCursor
           }
-          hasMore = result.hasMore
+          hasMore = replay.hasMore
         }
       } finally {
         state.polling = false
@@ -214,9 +219,10 @@ export default function CurrentEditor({
     let connectTimer: ReturnType<typeof setTimeout> | null = null
     const tryConnect = () => {
       getCurrentCursor(realmId, docRefRef.current)
-        .then(({ cursor }) => {
-          clientRef.current.remoteCursor = cursor
-          clientRef.current.localSeq = cursor
+        .then((result) => {
+          if (!result.success) throw new Error(result.error)
+          clientRef.current.remoteCursor = result.data.cursor
+          clientRef.current.localSeq = result.data.cursor
           setConnected(true)
         })
         .catch(() => {
@@ -261,10 +267,11 @@ export default function CurrentEditor({
     }
     const pollPresence = async () => {
       try {
-        const entries = await getPresence(realmId, resolvedDocRef, sessionIdRef.current)
+        const result = await getPresence(realmId, resolvedDocRef, sessionIdRef.current)
         if (stopped) return
+        if (!result.success) return
         setRemoteCursors(
-          entries.map((e: PresenceEntry) => ({
+          result.data.map((e: PresenceEntry) => ({
             sessionId: e.actor_id + ':' + e.last_active_at,
             actorName: e.actor_name || e.actor_id,
             cursorOffset: e.cursor_offset,
@@ -289,7 +296,9 @@ export default function CurrentEditor({
       stopped = true
       clearInterval(heartbeat)
       clearInterval(poller)
-      void deletePresence(realmId, resolvedDocRef, sessionIdRef.current)
+      void deletePresence(realmId, resolvedDocRef, sessionIdRef.current).catch(() => {
+        // 卸载阶段的上报失败无需反馈
+      })
     }
   }, [realmId, resolvedDocRef, actorId, actorType, actorName])
   // 光标/选区变化 → 立即上报（节流：只在 selection 实际变化时）

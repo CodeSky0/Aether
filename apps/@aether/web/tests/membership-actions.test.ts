@@ -20,6 +20,7 @@ import {
   listRealmInvitations,
   revokeRealmInvitation,
 } from '@/app/actions/membership'
+import type { ActionResult } from '@/lib/action-result'
 
 vi.mock('@aether/auth', () => ({
   acceptOrganizationInvitation: vi.fn(),
@@ -76,11 +77,22 @@ function mockRealm(authOrgId: string) {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          limit: vi.fn().mockResolvedValue([{ id: 'realm-1', authOrgId }]),
+          limit: vi.fn().mockResolvedValue([{ id: '550e8400-e29b-41d4-a716-446655440000', authOrgId }]),
         })),
       })),
     })),
   } as never)
+}
+
+/** ActionResult 契约断言：动作不抛异常，而是收敛为 { success: false, error }。 */
+async function expectActionFailure(
+  promise: Promise<ActionResult<unknown>>,
+  fragment: string,
+) {
+  const result = await promise
+  expect(result.success).toBe(false)
+  if (!result.success) expect(result.error).toContain(fragment)
+  return result
 }
 
 describe('membership actions', () => {
@@ -97,23 +109,25 @@ describe('membership actions', () => {
   it('rejects unsupported invitation roles', async () => {
     mockRealm('org-1')
 
-    await expect(
+    await expectActionFailure(
       inviteRealmMember({
-        realmId: 'realm-1',
+        realmId: '550e8400-e29b-41d4-a716-446655440000',
         email: 'member@example.com',
         role: 'owner,admin',
       }),
-    ).rejects.toThrow('Invalid membership role')
+      'Invalid membership role',
+    )
     expect(mockedInvite).not.toHaveBeenCalled()
   })
 
   it('reports placeholder organization binding errors', async () => {
     mockRealm('org-placeholder-1')
 
-    await expect(
-      listRealmInvitations({ realmId: 'realm-1' }),
-    ).rejects.toThrow('not bound to a Better-Auth organization')
-    expect(mockedRequireEntitlement).toHaveBeenCalledWith('realm-1', {
+    await expectActionFailure(
+      listRealmInvitations({ realmId: '550e8400-e29b-41d4-a716-446655440000' }),
+      'not bound to a Better-Auth organization',
+    )
+    expect(mockedRequireEntitlement).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440000', {
       resource: 'realm',
       action: 'read',
     })
@@ -122,13 +136,14 @@ describe('membership actions', () => {
   it('rejects invitations without a session before authorization or Realm lookup', async () => {
     mockedResolveCurrentActor.mockResolvedValue(null)
 
-    await expect(
+    await expectActionFailure(
       inviteRealmMember({
-        realmId: 'realm-1',
+        realmId: '550e8400-e29b-41d4-a716-446655440000',
         email: 'member@example.com',
         role: 'member',
       }),
-    ).rejects.toThrow('without an authenticated session')
+      'without an authenticated session',
+    )
 
     expect(mockedRequireEntitlement).not.toHaveBeenCalled()
     expect(mockedGetDb).not.toHaveBeenCalled()
@@ -138,9 +153,10 @@ describe('membership actions', () => {
   it('rejects invitation listing without a session before authorization or Realm lookup', async () => {
     mockedResolveCurrentActor.mockResolvedValue(null)
 
-    await expect(
-      listRealmInvitations({ realmId: 'realm-1' }),
-    ).rejects.toThrow('without an authenticated session')
+    await expectActionFailure(
+      listRealmInvitations({ realmId: '550e8400-e29b-41d4-a716-446655440000' }),
+      'without an authenticated session',
+    )
 
     expect(mockedRequireEntitlement).not.toHaveBeenCalled()
     expect(mockedGetDb).not.toHaveBeenCalled()
@@ -150,18 +166,19 @@ describe('membership actions', () => {
   it('checks manage_member before inviting', async () => {
     mockRealm('org-1')
 
-    await inviteRealmMember({
-      realmId: 'realm-1',
+    const result = await inviteRealmMember({
+      realmId: '550e8400-e29b-41d4-a716-446655440000',
       email: 'member@example.com',
       role: 'member',
     })
 
-    expect(mockedRequireEntitlement).toHaveBeenCalledWith('realm-1', {
+    expect(result.success).toBe(true)
+    expect(mockedRequireEntitlement).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440000', {
       resource: 'realm',
       action: 'manage_member',
     })
     expect(mockedRequireRealmRole).toHaveBeenCalledWith(
-      'realm-1',
+      '550e8400-e29b-41d4-a716-446655440000',
       { actorType: 'human', actorId: 'user-1' },
       ['owner', 'admin'],
     )
@@ -172,13 +189,14 @@ describe('membership actions', () => {
       new Error('Realm membership does not permit this operation'),
     )
 
-    await expect(
+    await expectActionFailure(
       inviteRealmMember({
-        realmId: 'realm-1',
+        realmId: '550e8400-e29b-41d4-a716-446655440000',
         email: 'member@example.com',
         role: 'member',
       }),
-    ).rejects.toThrow('does not permit this operation')
+      'does not permit this operation',
+    )
     expect(mockedInvite).not.toHaveBeenCalled()
   })
 
@@ -190,17 +208,18 @@ describe('membership actions', () => {
       select: vi.fn(() => ({
         from: vi.fn(() => ({
           where: vi.fn(() => ({
-            limit: vi.fn().mockResolvedValue([{ id: 'realm-1' }]),
+            limit: vi.fn().mockResolvedValue([{ id: '550e8400-e29b-41d4-a716-446655440000' }]),
           })),
         })),
       })),
     } as never)
 
-    await acceptRealmInvitation({ invitationId: 'invite-1' })
+    const result = await acceptRealmInvitation({ invitationId: '660e8400-e29b-41d4-a716-446655440000' })
 
+    expect(result.success).toBe(true)
     expect(acceptOrganizationInvitation).toHaveBeenCalled()
     expect(vi.mocked(ensureRealmMembership)).toHaveBeenCalledWith({
-      realmId: 'realm-1',
+      realmId: '550e8400-e29b-41d4-a716-446655440000',
       actorType: 'human',
       actorId: 'user-1',
     })
@@ -227,11 +246,14 @@ describe('membership actions', () => {
 
     mockedRequireRealmRole.mockResolvedValue('owner')
 
-    await expect(listRealmMembers({ realmId: 'realm-1' })).resolves.toMatchObject({
-      currentActorRole: 'owner',
-      members: [{ id: 'member-1', actor_id: 'user-1' }],
+    await expect(listRealmMembers({ realmId: '550e8400-e29b-41d4-a716-446655440000' })).resolves.toMatchObject({
+      success: true,
+      data: {
+        currentActorRole: 'owner',
+        members: [{ id: 'member-1', actor_id: 'user-1' }],
+      },
     })
-    expect(mockedRequireEntitlement).toHaveBeenCalledWith('realm-1', {
+    expect(mockedRequireEntitlement).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440000', {
       resource: 'realm',
       action: 'read',
     })
@@ -240,30 +262,32 @@ describe('membership actions', () => {
   it('rejects revocation when the invitation belongs to another organization', async () => {
     mockRealm('org-1')
     mockedListInvitations.mockResolvedValue([
-      { id: 'invite-1', organizationId: 'org-2' },
+      { id: '660e8400-e29b-41d4-a716-446655440000', organizationId: 'org-2' },
     ] as never)
 
-    await expect(
+    await expectActionFailure(
       revokeRealmInvitation({
-        realmId: 'realm-1',
-        invitationId: 'invite-1',
+        realmId: '550e8400-e29b-41d4-a716-446655440000',
+        invitationId: '660e8400-e29b-41d4-a716-446655440000',
       }),
-    ).rejects.toThrow('does not belong to this Realm organization')
+      'does not belong to this Realm organization',
+    )
     expect(mockedCancelInvitation).not.toHaveBeenCalled()
   })
 
   it('revokes a Realm invitation only after confirming its organization', async () => {
     mockRealm('org-1')
     mockedListInvitations.mockResolvedValue([
-      { id: 'invite-1', organizationId: 'org-1' },
+      { id: '660e8400-e29b-41d4-a716-446655440000', organizationId: 'org-1' },
     ] as never)
-    mockedCancelInvitation.mockResolvedValue({ invitation: { id: 'invite-1' } } as never)
+    mockedCancelInvitation.mockResolvedValue({ invitation: { id: '660e8400-e29b-41d4-a716-446655440000' } } as never)
 
-    await revokeRealmInvitation({
-      realmId: 'realm-1',
-      invitationId: 'invite-1',
+    const result = await revokeRealmInvitation({
+      realmId: '550e8400-e29b-41d4-a716-446655440000',
+      invitationId: '660e8400-e29b-41d4-a716-446655440000',
     })
 
+    expect(result.success).toBe(true)
     expect(mockedListInvitations).toHaveBeenCalledWith(
       {},
       expect.any(Headers),
@@ -272,19 +296,21 @@ describe('membership actions', () => {
     expect(mockedCancelInvitation).toHaveBeenCalledWith(
       {},
       expect.any(Headers),
-      { invitationId: 'invite-1' },
+      { invitationId: '660e8400-e29b-41d4-a716-446655440000' },
     )
   })
 
   it('rejects member listing and revocation without a session before database or auth access', async () => {
     mockedResolveCurrentActor.mockResolvedValue(null)
 
-    await expect(listRealmMembers({ realmId: 'realm-1' })).rejects.toThrow(
+    await expectActionFailure(
+      listRealmMembers({ realmId: '550e8400-e29b-41d4-a716-446655440000' }),
       'without an authenticated session',
     )
-    await expect(
-      revokeRealmInvitation({ realmId: 'realm-1', invitationId: 'invite-1' }),
-    ).rejects.toThrow('without an authenticated session')
+    await expectActionFailure(
+      revokeRealmInvitation({ realmId: '550e8400-e29b-41d4-a716-446655440000', invitationId: '660e8400-e29b-41d4-a716-446655440000' }),
+      'without an authenticated session',
+    )
     expect(mockedGetDb).not.toHaveBeenCalled()
     expect(mockedTryGetAuth).not.toHaveBeenCalled()
   })

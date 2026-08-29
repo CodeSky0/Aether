@@ -9,6 +9,7 @@ import RealmInvitationList from '@/components/realm-invitation-list'
 import RealmMemberList from '@/components/realm-member-list'
 import NavShell from '@/components/nav-shell'
 import PageHeader from '@/components/page-header'
+import { unwrapOr } from '@/lib/action-result'
 import { listRealms } from '@/lib/realms'
 import { UNBOUND_REALM_ORGANIZATION_MESSAGE } from '@/lib/membership-utils'
 import { MEMBERSHIP_DENIED_MESSAGE_PREFIX } from '@/lib/membership-guard'
@@ -22,8 +23,7 @@ interface PageProps {
 
 // 只放行本仓库自己产出、且对当前访问者可公开的文案；驱动/配置错误一律收敛成通用提示，
 // 避免把内部配置与数据库细节透给无权访问该 Realm 的访问者。
-function renderLoadError(error: unknown): string {
-  const message = error instanceof Error ? error.message : ''
+function renderLoadError(message: string): string {
   if (message === UNBOUND_REALM_ORGANIZATION_MESSAGE) {
     return 'Realm 尚未绑定真实 organization，请先运行回填脚本 backfill:realm-orgs。'
   }
@@ -35,18 +35,16 @@ function renderLoadError(error: unknown): string {
 
 export default async function MembersPage({ params }: PageProps) {
   const { id: realmId } = await params
-  const realms = await listRealms()
+  const realms = unwrapOr(await listRealms(), [])
   const realm = realms.find((candidate) => candidate.id === realmId)
   if (!realm) notFound()
 
-  const [memberResult, invitationResult] = await Promise.allSettled([
+  const [memberResult, invitationResult] = await Promise.all([
     listRealmMembers({ realmId }),
     listRealmInvitations({ realmId }),
   ])
-  const memberData =
-    memberResult.status === 'fulfilled' ? memberResult.value : null
-  const invitations =
-    invitationResult.status === 'fulfilled' ? invitationResult.value : null
+  const memberData = memberResult.success ? memberResult.data : null
+  const invitations = invitationResult.success ? invitationResult.data : null
 
   return (
     <NavShell currentRealmName={realm.name} currentRealmId={realm.id}>
@@ -56,14 +54,13 @@ export default async function MembersPage({ params }: PageProps) {
           title="成员管理"
           description={`${realm.name} 的 Aether membership 与待处理邀请。`}
         />
-        {(memberResult.status === 'rejected' ||
-          invitationResult.status === 'rejected') && (
+        {(!memberResult.success || !invitationResult.success) && (
           <div className="mb-6 space-y-2 rounded-md bg-warning/10 p-4 text-label-12 text-neutral-8">
-            {memberResult.status === 'rejected' && (
-              <p>成员列表：{renderLoadError(memberResult.reason)}</p>
+            {!memberResult.success && (
+              <p>成员列表：{renderLoadError(memberResult.error)}</p>
             )}
-            {invitationResult.status === 'rejected' && (
-              <p>邀请列表：{renderLoadError(invitationResult.reason)}</p>
+            {!invitationResult.success && (
+              <p>邀请列表：{renderLoadError(invitationResult.error)}</p>
             )}
           </div>
         )}

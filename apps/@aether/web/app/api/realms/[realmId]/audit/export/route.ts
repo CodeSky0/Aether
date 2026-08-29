@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { requireEntitlement, resolveCurrentActor } from '@/lib/auth-guard'
 import { recordAuditExport } from '@/lib/audit-write'
+import { createLogger } from '@/lib/logger'
 import {
   auditCsvHeader,
   auditCsvLine,
@@ -23,6 +24,8 @@ import {
   READ_MEMBER_ROLES,
   requireRealmRole,
 } from '@/lib/membership-guard'
+
+const logger = createLogger('audit-export')
 
 export const dynamic = 'force-dynamic'
 
@@ -82,8 +85,7 @@ export async function GET(
     if (isAccessDenied(error)) {
       return Response.json({ error: 'Audit export denied' }, { status: 403 })
     }
-    // eslint-disable-next-line no-console
-    console.error('[audit-export] authorization check failed', error)
+    logger.error('authorization check failed', { error })
     return Response.json(
       { error: 'Audit export temporarily unavailable' },
       { status: 503 },

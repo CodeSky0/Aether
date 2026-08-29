@@ -1,6 +1,7 @@
 // @aether/web · /realms/[id]/audit 页面：审计记录列表
 // Yohaku：eyebrow 承载 slug，记录列表以 hairline 分隔呈现台账质感。
 import { listAuditLogs } from '@/lib/audit'
+import { unwrapOr } from '@/lib/action-result'
 import { listRealms } from '@/lib/realms'
 import AuditLogList from '@/components/audit-log-list'
 import NavShell from '@/components/nav-shell'
@@ -13,11 +14,13 @@ interface PageProps {
 }
 export default async function AuditPage({ params }: PageProps) {
   const { id: realmId } = await params
-  const [logs, realms] = await Promise.all([
+  const [logsResult, realmsResult] = await Promise.all([
     // P1-7 修复：初始只取一页，后续由客户端"加载更多"
     listAuditLogs({ realmId, limit: INITIAL_PAGE_SIZE }),
     listRealms(),
   ])
+  const logs = unwrapOr(logsResult, [])
+  const realms = unwrapOr(realmsResult, [])
   const realm = realms.find((r) => r.id === realmId)
   if (!realm) notFound()
   return (

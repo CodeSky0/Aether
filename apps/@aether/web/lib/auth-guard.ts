@@ -12,7 +12,7 @@ import { resolveSessionActor } from '@aether/auth'
 import { getDb } from '@/lib/db'
 import { tryGetAuth } from '@/lib/auth'
 import { realms } from '@aether/db'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import {
   assertEntitlement,
   loadEntitlementSubject,
@@ -20,6 +20,8 @@ import {
 } from '@aether/entitlement'
 import type { ActorType } from '@aether/types'
 import { ensureRealmMembership } from '@/lib/membership-provisioning'
+import { createLogger } from '@/lib/logger'
+const logger = createLogger('auth-guard')
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 function isGuardEnabled(): boolean {
   return process.env.AETHER_AUTH_GUARD_ENABLED !== 'false'
@@ -42,10 +44,7 @@ export async function resolveCurrentActor(): Promise<CurrentActor | null> {
   if (auth === null) {
     if (!authNotConfiguredWarningLogged) {
       authNotConfiguredWarningLogged = true
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[auth-guard] Better-Auth is not configured; session actor resolution is unavailable',
-      )
+      logger.warn('Better-Auth is not configured; session actor resolution is unavailable')
     }
     return null
   }
@@ -59,17 +58,14 @@ export async function resolveCurrentActor(): Promise<CurrentActor | null> {
   } catch {
     if (!authResolutionFailureWarningLogged) {
       authResolutionFailureWarningLogged = true
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[auth-guard] Better-Auth session resolution failed; returning null for fail-closed enforcement',
-      )
+      logger.warn('Better-Auth session resolution failed; returning null for fail-closed enforcement')
     }
     return null
   }
 }
 /**
- * 校验 realmId 格式并确认 Realm 存在。
- * @throws Error 当 realmId 格式非法或 Realm 不存在时
+ * 校验 realmId 格式并确认 Realm 存在且未被软删除。
+ * @throws Error 当 realmId 格式非法或 Realm 不存在（含已软删除）时
  */
 export async function requireRealmAccess(realmId: string): Promise<void> {
   if (!isGuardEnabled()) return
@@ -80,7 +76,7 @@ export async function requireRealmAccess(realmId: string): Promise<void> {
   const existing = await db
     .select({ id: realms.id })
     .from(realms)
-    .where(eq(realms.id, realmId))
+    .where(and(eq(realms.id, realmId), isNull(realms.deleted_at)))
     .limit(1)
   if (existing.length === 0) {
     throw new Error(`Realm not found: ${realmId}`)
@@ -99,8 +95,7 @@ export async function requireEntitlement(
   if (!isEntitlementEnabled()) {
     if (!entitlementDisabledNoticeLogged) {
       entitlementDisabledNoticeLogged = true
-      // eslint-disable-next-line no-console
-      console.debug('[auth-guard] Entitlement Engine disabled; allowing request')
+      logger.debug('Entitlement Engine disabled; allowing request')
     }
     return
   }

@@ -60,8 +60,12 @@ describe('createRealm', () => {
     )
     mockedGetDb.mockReturnValue({ transaction } as never)
 
-    await createRealm({ slug: 'demo', name: 'Demo' })
+    const result = await createRealm({ slug: 'demo', name: 'Demo' })
 
+    expect(result).toMatchObject({
+      success: true,
+      data: { id: 'realm-1', slug: 'demo', name: 'Demo' },
+    })
     expect(mockedResolveActor).not.toHaveBeenCalled()
     expect(mockedCreateOrganization).not.toHaveBeenCalled()
     expect(transaction).toHaveBeenCalledTimes(1)
@@ -84,8 +88,9 @@ describe('createRealm', () => {
     mockedTryGetAuth.mockReturnValue({} as NonNullable<ReturnType<typeof tryGetAuth>>)
     mockedGetDb.mockReturnValue({ transaction } as never)
 
-    await createRealm({ slug: 'demo', name: 'Demo' })
+    const result = await createRealm({ slug: 'demo', name: 'Demo' })
 
+    expect(result.success).toBe(true)
     expect(mockedCreateOrganization).toHaveBeenCalledWith(
       expect.anything(),
       { name: 'Demo', slug: 'demo', ownerUserId: 'user-1' },
@@ -99,9 +104,10 @@ describe('createRealm', () => {
     const transaction = vi.fn()
     mockedGetDb.mockReturnValue({ transaction } as never)
 
-    await expect(createRealm({ slug: 'demo', name: 'Demo' })).rejects.toThrow(
-      'organization failed',
-    )
+    const result = await createRealm({ slug: 'demo', name: 'Demo' })
+
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.error).toContain('organization failed')
     expect(transaction).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,7 @@
 // @aether/web · Current 工作区（核心环 Step 5-7 的承载界面）
 // 三栏布局：左 Files（文件树）
 //           中 Editor（通过 iframe 嵌入独立部署的 editor-host 应用）
-//           右 Entities（Human 成员 + AI Entity 同列）
+//           右 Entities（双 Tab：主体面板 + Entity 活动台账）
 // 底部 Threads：与编辑器选区联动的叙事单元。
 // Yohaku：serif 面板标题、mono 代码指纹、border-border 1px 分隔（无阴影），
 // 梅红只出现在激活文件、活跃 Entity 脉冲与主 CTA。
@@ -11,7 +11,13 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 
 import type { RealmActorRow } from '@/lib/entities'
+import type { AuditRow } from '@/lib/audit'
 import { createThread, type ThreadRow } from '@/lib/threads'
+import {
+  EntityAvatar,
+  HandoffIndicator,
+  toEntityStatus,
+} from '@/components/ui/entity-avatar'
 
 /** V0.1 静态文件清单：每个 path 映射独立 doc_ref（file:{realmId}:{path}） */
 const WORKSPACE_FILES = [
@@ -20,6 +26,18 @@ const WORKSPACE_FILES = [
   { path: 'src/current.ts' },
   { path: 'docs/notes.md' },
 ] as const
+
+/** Entity 被视为「正在收敛」的窗口：最近 N 毫秒内有非只读审计活动 */
+const HANDOFF_WINDOW_MS = 60_000
+
+/** 审计动作的台账动词（与 /realms/[id]/audit 的 actionLabel 同源） */
+const AUDIT_ACTION_LABEL: Record<string, string> = {
+  read: '读取',
+  write: '写入',
+  permission_change: '权限变更',
+  converse: '对话',
+  execute: '执行',
+}
 
 interface SelectionInfo {
   start: number
@@ -32,6 +50,8 @@ interface CurrentWorkspaceProps {
   realmName: string
   threads: ThreadRow[]
   actors: RealmActorRow[]
+  /** Entity 产生的审计行（服务端聚合，右侧「活动」Tab 数据源） */
+  entityAuditRows: AuditRow[]
   defaultProjectId: string
   currentActorId: string
   currentActorName: string
@@ -61,6 +81,7 @@ export default function CurrentWorkspace({
   realmName,
   threads,
   actors,
+  entityAuditRows,
   defaultProjectId,
   currentActorId,
   currentActorName,
@@ -138,9 +159,20 @@ export default function CurrentWorkspace({
           </div>
         </section>
 
-        {/* 右：Entities */}
+        {/* 右：Entities + 活动台账（双 Tab） */}
         <aside className="flex w-52 shrink-0 flex-col border-l border-border bg-neutral-1 lg:w-64">
-          <EntityPanel actors={actors} />
+          <EntityPanel
+            actors={actors}
+            entityAuditRows={entityAuditRows}
+            onSelectDocRef={(docRef) => {
+              // doc_ref 形如 file:{realmId}:{path}——命中工作区文件则切换编辑器
+              const path = docRef.split(':').slice(2).join(':')
+              if (WORKSPACE_FILES.some((f) => f.path === path)) {
+                setActivePath(path)
+                setSelection(null)
+              }
+            }}
+          />
         </aside>
       </div>
 
@@ -157,58 +189,204 @@ export default function CurrentWorkspace({
   )
 }
 
-/** 右侧面板：Human 成员 + AI Entity 同列呈现 */
-function EntityPanel({ actors }: { actors: RealmActorRow[] }) {
+/** 右侧面板：双 Tab——主体列表（头像化）+ Entity 活动台账 */
+function EntityPanel({
+  actors,
+  entityAuditRows,
+  onSelectDocRef,
+}: {
+  actors: RealmActorRow[]
+  entityAuditRows: AuditRow[]
+  onSelectDocRef: (docRef: string) => void
+}) {
+  const [tab, setTab] = useState<'entities' | 'activity'>('entities')
   const humans = actors.filter((a) => a.kind === 'human')
   const aiEntities = actors.filter((a) => a.kind === 'entity')
   const noEntity = aiEntities.length === 0
 
+  // Handoff 派生：Entity 最近 HANDOFF_WINDOW_MS 内有非只读审计活动 → 正在收敛
+  const now = Date.now()
+  const workingEntityIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const row of entityAuditRows) {
+      if (row.action === 'read') continue
+      const ts =
+        typeof row.created_at === 'string'
+          ? new Date(row.created_at).getTime()
+          : row.created_at.getTime()
+      if (now - ts <= HANDOFF_WINDOW_MS) ids.add(row.actor_id)
+    }
+    return ids
+  }, [entityAuditRows, now])
+
+  const tabClass = (active: boolean) =>
+    `rounded-md px-2.5 py-1.5 text-copy-13 transition ${
+      active
+        ? 'bg-neutral-2 font-medium text-neutral-10'
+        : 'text-neutral-7 hover:bg-neutral-2 hover:text-neutral-9'
+    }`
+
   return (
     <>
-      <p className="shrink-0 px-4 pb-1 pt-4 font-serif text-copy-14 font-medium text-neutral-9">
-        Entities
-      </p>
+      <div className="flex shrink-0 items-center gap-1 px-3 pb-2 pt-3">
+        <button
+          type="button"
+          onClick={() => setTab('entities')}
+          className={tabClass(tab === 'entities')}
+        >
+          Entities
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('activity')}
+          className={tabClass(tab === 'activity')}
+        >
+          活动
+        </button>
+      </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
-        {actors.length === 0 && (
-          <div className="mt-6 rounded-md border border-dashed border-border px-3 py-6 text-center">
-            <p className="text-copy-13 text-neutral-7">Invite an Entity</p>
-            <p className="mt-1 text-label-12 text-neutral-6">
-              Realm 中还没有任何主体。
-            </p>
-          </div>
+        {tab === 'entities' ? (
+          <ActorList
+            actors={[...humans, ...aiEntities]}
+            workingEntityIds={workingEntityIds}
+            noEntity={noEntity}
+          />
+        ) : (
+          <ActivityTrail
+            auditRows={entityAuditRows}
+            entities={aiEntities}
+            onSelectDocRef={onSelectDocRef}
+          />
         )}
-        {[...humans, ...aiEntities].map((actor) => (
+      </div>
+    </>
+  )
+}
+
+/** 主体列表：EntityAvatar 承载身份与状态，handoff 行内联收敛文案 */
+function ActorList({
+  actors,
+  workingEntityIds,
+  noEntity,
+}: {
+  actors: RealmActorRow[]
+  workingEntityIds: Set<string>
+  noEntity: boolean
+}) {
+  if (actors.length === 0) {
+    return (
+      <div className="mt-6 rounded-md border border-dashed border-border px-3 py-6 text-center">
+        <p className="text-copy-13 text-neutral-7">Invite an Entity</p>
+        <p className="mt-1 text-label-12 text-neutral-6">
+          Realm 中还没有任何主体。
+        </p>
+      </div>
+    )
+  }
+  return (
+    <>
+      {actors.map((actor) => {
+        const working =
+          actor.kind === 'entity' && workingEntityIds.has(actor.id)
+        return (
           <div
             key={`${actor.kind}:${actor.id}`}
             className="flex items-center gap-2.5 rounded-md px-2 py-2 hover:bg-neutral-2"
           >
-            {actor.kind === 'entity' && actor.status === 'active' ? (
-              <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-accent" />
-            ) : (
-              <span
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                  actor.kind === 'human' ? 'bg-neutral-7' : 'bg-neutral-4'
-                }`}
-              />
-            )}
-            <div className="min-w-0">
+            <EntityAvatar
+              name={actor.name}
+              status={toEntityStatus(actor.status)}
+              working={working}
+            />
+            <div className="min-w-0 flex-1">
               <p className="truncate text-copy-13 text-neutral-9">{actor.name}</p>
-              <p className="font-mono text-caption-10 uppercase tracking-wider text-neutral-6">
-                {actor.kind === 'human' ? 'Human' : 'Entity'} · {actor.status}
-              </p>
+              {working ? (
+                <HandoffIndicator name={actor.name} />
+              ) : (
+                <p className="font-mono text-caption-10 uppercase tracking-wider text-neutral-6">
+                  {actor.kind === 'human' ? 'Human' : 'Entity'} · {actor.status}
+                </p>
+              )}
             </div>
           </div>
-        ))}
-        {noEntity && actors.length > 0 && (
-          <div className="mt-3 rounded-md border border-dashed border-border px-3 py-4 text-center">
-            <p className="text-copy-13 text-neutral-7">Invite an Entity</p>
-            <p className="mt-1 text-label-12 text-neutral-6">
-              让 AI 以一等成员身份加入 Current。
-            </p>
-          </div>
-        )}
-      </div>
+        )
+      })}
+      {noEntity && (
+        <div className="mt-3 rounded-md border border-dashed border-border px-3 py-4 text-center">
+          <p className="text-copy-13 text-neutral-7">Invite an Entity</p>
+          <p className="mt-1 text-label-12 text-neutral-6">
+            让 AI 以一等成员身份加入 Current。
+          </p>
+        </div>
+      )}
     </>
+  )
+}
+
+/** 活动台账：[时间] [Entity] [动作] [目标]，mono 小字，doc_ref 可点击联动编辑器 */
+function ActivityTrail({
+  auditRows,
+  entities,
+  onSelectDocRef,
+}: {
+  auditRows: AuditRow[]
+  entities: RealmActorRow[]
+  onSelectDocRef: (docRef: string) => void
+}) {
+  const nameByEntityId = useMemo(
+    () => new Map(entities.map((e) => [e.id, e.name])),
+    [entities],
+  )
+
+  if (auditRows.length === 0) {
+    return (
+      <div className="mt-6 rounded-md border border-dashed border-border px-3 py-6 text-center">
+        <p className="text-copy-13 text-neutral-7">暂无 Entity 活动</p>
+        <p className="mt-1 text-label-12 text-neutral-6">
+          Entity 的每次读取、写入与执行都会记录在此。
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <ul className="flex flex-col">
+      {auditRows.map((row) => {
+        const time = new Date(row.created_at).toLocaleTimeString('zh-CN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+        const name = nameByEntityId.get(row.actor_id) ?? row.actor_id.slice(0, 8)
+        const label = AUDIT_ACTION_LABEL[row.action] ?? row.action
+        const target = row.doc_ref ?? row.entity_id ?? '—'
+        const path = row.doc_ref?.split(':').slice(2).join(':')
+        const clickable =
+          path !== undefined &&
+          WORKSPACE_FILES.some((f) => f.path === path)
+        return (
+          <li key={row.id} className="border-b border-border last:border-b-0">
+            <button
+              type="button"
+              disabled={!clickable}
+              onClick={() => row.doc_ref && onSelectDocRef(row.doc_ref)}
+              title={clickable ? `在编辑器中打开 ${path}` : target}
+              className={`flex w-full flex-col gap-0.5 rounded-md px-2 py-2 text-left font-mono text-label-12 transition ${
+                clickable
+                  ? 'text-neutral-6 hover:bg-neutral-2 hover:text-neutral-8'
+                  : 'text-neutral-6'
+              }`}
+            >
+              <span className="flex items-baseline gap-1.5">
+                <span className="shrink-0 tabular-nums">{time}</span>
+                <span className="truncate text-neutral-8">{name}</span>
+                <span>{label}</span>
+              </span>
+              <span className="truncate">{target}</span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
@@ -235,15 +413,20 @@ function ThreadPanel({
     setSubmitting(true)
     setError(null)
     try {
-      await createThread({
+      const result = await createThread({
         realmId,
         projectId: defaultProjectId,
         title: title.trim(),
         ...(selection ? { codeAnchor: selection.text } : {}),
       })
+      if (!result.success) {
+        setError(result.error)
+        return
+      }
       setTitle('')
       router.refresh()
     } catch (err) {
+      // 网络层异常兜底；业务错误已由 ActionResult 承载
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setSubmitting(false)

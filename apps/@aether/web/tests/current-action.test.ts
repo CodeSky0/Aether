@@ -43,8 +43,12 @@ describe('appendCurrentUpdate', () => {
   it('无会话时服务端注入 web-client actor', async () => {
     mockedResolveCurrentActor.mockResolvedValue(null)
 
-    await appendCurrentUpdate(input)
+    const result = await appendCurrentUpdate(input)
 
+    expect(result).toEqual({
+      success: true,
+      data: { seq: 1, deduplicated: false },
+    })
     expect(mockedAppendUpdate).toHaveBeenCalledWith(
       { name: 'mock-db' },
       { name: 'mock-broadcast' },
@@ -58,8 +62,12 @@ describe('appendCurrentUpdate', () => {
       actorId: 'user-123',
     })
 
-    await appendCurrentUpdate(input)
+    const result = await appendCurrentUpdate(input)
 
+    expect(result).toEqual({
+      success: true,
+      data: { seq: 1, deduplicated: false },
+    })
     expect(mockedAppendUpdate).toHaveBeenCalledWith(
       { name: 'mock-db' },
       { name: 'mock-broadcast' },
