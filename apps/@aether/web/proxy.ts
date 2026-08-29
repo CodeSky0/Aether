@@ -7,8 +7,10 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 
-/** Better-Auth 默认会话 cookie 名 */
-const SESSION_COOKIE = 'better-auth.session_token'
+/** Better-Auth 会话 cookie 名匹配片段：
+ *  实际名称可能是 better-auth.session_token、better-auth.session_token.non_secure、
+ *  或 HTTPS 环境自动加 __Secure- 前缀的变体。按子串匹配全部覆盖。 */
+const SESSION_COOKIE_FRAGMENT = 'better-auth.session_token'
 
 /** 需要会话 cookie 的路由前缀 */
 const SESSION_REQUIRED_PREFIXES = ['/dashboard', '/settings']
@@ -21,10 +23,9 @@ export default function proxy(request: NextRequest) {
   )
   if (!requiresSession) return NextResponse.next()
 
-  const hasSessionCookie =
-    request.cookies.has(SESSION_COOKIE) ||
-    // Better-Auth 在非 HTTPS 环境可能使用 .non_secure 变体
-    request.cookies.has(`${SESSION_COOKIE}.non_secure`)
+  const hasSessionCookie = request.cookies
+    .getAll()
+    .some((cookie) => cookie.name.includes(SESSION_COOKIE_FRAGMENT))
 
   if (!hasSessionCookie) {
     const loginUrl = new URL('/login', request.url)
