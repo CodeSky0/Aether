@@ -6,6 +6,42 @@ import { realmIntegrations } from '@aether/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 
+export interface RealmIntegrationRow {
+  id: string
+  provider: 'github' | 'gitlab' | 'linear'
+  installation_id: string
+  repo_full_name: string | null
+  status: 'active' | 'disconnected' | 'error'
+  created_at: Date
+  updated_at: Date
+}
+
+/** 列出 Realm 的活跃集成（deleted_at IS NULL），按创建时间降序。 */
+export async function listRealmIntegrations(
+  realmId: string,
+): Promise<RealmIntegrationRow[]> {
+  const db = getDb()
+  const rows = await db
+    .select({
+      id: realmIntegrations.id,
+      provider: realmIntegrations.provider,
+      installation_id: realmIntegrations.installation_id,
+      repo_full_name: realmIntegrations.repo_full_name,
+      status: realmIntegrations.status,
+      created_at: realmIntegrations.created_at,
+      updated_at: realmIntegrations.updated_at,
+    })
+    .from(realmIntegrations)
+    .where(
+      and(
+        eq(realmIntegrations.realm_id, realmId),
+        isNull(realmIntegrations.deleted_at),
+      ),
+    )
+    .orderBy(realmIntegrations.created_at)
+  return rows
+}
+
 export interface UpsertGithubIntegrationInput {
   realmId: string
   installationId: string

@@ -63,6 +63,27 @@ export async function findOrganizationMemberRoles<
   )
 }
 
+export async function findOrganizationMemberId<
+  TQueryResult extends PgQueryResultHKT,
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+>(
+  db: PgDatabase<TQueryResult, TFullSchema, TSchema>,
+  input: OrganizationMemberRolesInput,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(
+      and(
+        eq(member.organizationId, input.organizationId),
+        eq(member.userId, input.userId),
+      ),
+    )
+    .limit(1)
+  return row?.id ?? null
+}
+
 export function inviteToOrganization(
   auth: AuthInstance,
   headers: Headers,
@@ -117,6 +138,37 @@ export function acceptOrganizationInvitation(
     headers,
     body: {
       invitationId: input.invitationId,
+    },
+  })
+}
+
+export function updateOrganizationMemberRole(
+  auth: AuthInstance,
+  headers: Headers,
+  input: {
+    /** Better-Auth member 记录 id（非 user id） */
+    memberId: string
+    role: RealmOrganizationRole
+  },
+) {
+  return auth.api.updateMemberRole({
+    headers,
+    body: {
+      memberId: input.memberId,
+      role: input.role,
+    },
+  })
+}
+
+export function removeOrganizationMember(
+  auth: AuthInstance,
+  headers: Headers,
+  input: { /** Better-Auth member 记录 id 或成员邮箱 */ memberIdOrEmail: string },
+) {
+  return auth.api.removeMember({
+    headers,
+    body: {
+      memberIdOrEmail: input.memberIdOrEmail,
     },
   })
 }

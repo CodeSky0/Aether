@@ -29,6 +29,11 @@ export function requireGithubAppConfig(): GithubAppConfig {
   return config
 }
 
+/** GitHub App Webhook 签名密钥（创建 App 时设置，用于校验 X-Hub-Signature-256）。 */
+export function getGithubWebhookSecret(): string | null {
+  return process.env.AETHER_GITHUB_WEBHOOK_SECRET?.trim() || null
+}
+
 /** 集成凭据加密密钥（base64 编码的 32 字节）。 */
 export function getIntegrationEncryptionKey(): string | null {
   return process.env.AETHER_INTEGRATION_ENCRYPTION_KEY?.trim() || null

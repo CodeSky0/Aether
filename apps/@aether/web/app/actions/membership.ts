@@ -5,12 +5,15 @@
 import {
   acceptOrganizationInvitation,
   cancelOrganizationInvitation,
+  findOrganizationMemberId,
   inviteToOrganization,
   listOrganizationInvitations,
+  removeOrganizationMember,
+  updateOrganizationMemberRole,
   type RealmOrganizationRole,
 } from '@aether/auth'
 import { members, realmGuard, realms } from '@aether/db'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { z } from 'zod'
 import { getDb } from '@/lib/db'
@@ -279,5 +282,127 @@ export async function acceptRealmInvitation(
       actorId: actor.actorId,
     })
     return { ...result, realmId: realm.id }
+  })
+}
+
+export interface UpdateRealmMemberRoleInput {
+  realmId: string
+  /** 目标成员的 Better-Auth user id（即 members.actor_id） */
+  userId: string
+  role: 'owner' | 'admin' | 'member' | 'viewer'
+}
+
+const updateRoleInputSchema = z.object({
+  realmId: realmIdField,
+  userId: uuidField,
+  role: z.enum(['owner', 'admin', 'member', 'viewer'], {
+    message: 'Invalid membership role: expected owner, admin, member, or viewer',
+  }),
+})
+
+/** 更新成员角色。仅 owner 可变更角色（含提升/降级）。 */
+export async function updateRealmMemberRole(
+  input: UpdateRealmMemberRoleInput,
+): Promise<ActionResult<{ userId: string; role: string }>> {
+  return runGuarded('updateRealmMemberRole', async () => {
+    const parsed = updateRoleInputSchema.parse(input)
+    const actor = await requireAuthenticatedActor()
+    await requireEntitlement(parsed.realmId, {
+      resource: 'realm',
+      action: 'manage_member',
+    })
+    // 角色变更仅限 owner
+    await requireRealmRole(parsed.realmId, actor, ['owner'])
+    const realm = await getRealmOrganization(parsed.realmId)
+    const db = getDb()
+    const memberId = await findOrganizationMemberId(db, {
+      organizationId: realm.authOrgId,
+      userId: parsed.userId,
+    })
+    if (!memberId) {
+      throw new Error('成员不属于该 Realm organization')
+    }
+    await updateOrganizationMemberRole(requireAuth(), await headers(), {
+      memberId,
+      role: parsed.role satisfies RealmOrganizationRole,
+    })
+    await db
+      .update(members)
+      .set({ role: parsed.role, updated_at: new Date() })
+      .where(
+        and(
+          realmGuard(members, parsed.realmId),
+          eq(members.actor_type, 'human'),
+          eq(members.actor_id, parsed.userId),
+        ),
+      )
+    return { userId: parsed.userId, role: parsed.role }
+  })
+}
+
+export interface RemoveRealmMemberInput {
+  realmId: string
+  /** 目标成员的 Better-Auth user id */
+  userId: string
+}
+
+const removeMemberInputSchema = z.object({
+  realmId: realmIdField,
+  userId: uuidField,
+})
+
+/** 移除成员。owner/admin 可操作，但不能移除 owner。 */
+export async function removeRealmMember(
+  input: RemoveRealmMemberInput,
+): Promise<ActionResult<{ userId: string }>> {
+  return runGuarded('removeRealmMember', async () => {
+    const parsed = removeMemberInputSchema.parse(input)
+    const actor = await requireAuthenticatedActor()
+    await requireEntitlement(parsed.realmId, {
+      resource: 'realm',
+      action: 'manage_member',
+    })
+    await requireRealmRole(parsed.realmId, actor, MANAGE_MEMBER_ROLES)
+    const realm = await getRealmOrganization(parsed.realmId)
+
+    // 不允许移除 owner
+    const [target] = await getDb()
+      .select({ role: members.role })
+      .from(members)
+      .where(
+        and(
+          realmGuard(members, parsed.realmId),
+          eq(members.actor_type, 'human'),
+          eq(members.actor_id, parsed.userId),
+          eq(members.status, 'active'),
+        ),
+      )
+      .limit(1)
+    if (target?.role === 'owner') {
+      throw new Error('不能移除 Realm owner；请先转移所有权。')
+    }
+
+    const db = getDb()
+    const memberId = await findOrganizationMemberId(db, {
+      organizationId: realm.authOrgId,
+      userId: parsed.userId,
+    })
+    if (!memberId) {
+      throw new Error('成员不属于该 Realm organization')
+    }
+    await removeOrganizationMember(requireAuth(), await headers(), {
+      memberIdOrEmail: memberId,
+    })
+    await db
+      .update(members)
+      .set({ status: 'suspended', updated_at: new Date() })
+      .where(
+        and(
+          realmGuard(members, parsed.realmId),
+          eq(members.actor_type, 'human'),
+          eq(members.actor_id, parsed.userId),
+        ),
+      )
+    return { userId: parsed.userId }
   })
 }

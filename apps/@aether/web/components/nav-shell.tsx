@@ -214,10 +214,10 @@ function Sidebar({
         active: pathname.startsWith(`/realms/${currentRealmId}/audit`),
       },
       {
-        href: `/realms/${currentRealmId}/members`,
+        href: `/realms/${currentRealmId}/settings/members`,
         label: '成员管理',
         icon: <IconUsers className="h-4 w-4" />,
-        active: pathname.startsWith(`/realms/${currentRealmId}/members`),
+        active: pathname.startsWith(`/realms/${currentRealmId}/settings/members`),
       },
       {
         href: `/realms/${currentRealmId}/settings`,
