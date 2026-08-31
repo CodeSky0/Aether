@@ -15,6 +15,8 @@ const REALM_TABLES = [
   'audit_log',
   // P2-16 修复：dialogue_messages 表带 realm_id，纳入 Realm 隔离守卫
   'dialogue_messages',
+  // Resonance：realm_integrations 带 realm_id，纳入 Realm 隔离守卫
+  'realm_integrations',
 ] as const
 type RealmTableName = (typeof REALM_TABLES)[number]
 /** 获取表的符号名称（兼容 Drizzle 内部实现） */

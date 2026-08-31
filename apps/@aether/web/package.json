@@ -18,6 +18,7 @@
     "@aether/auth": "workspace:*",
     "@aether/db": "workspace:*",
     "@aether/entitlement": "workspace:*",
+    "@aether/resonance": "workspace:*",
     "@aether/state": "workspace:*",
     "@aether/types": "workspace:*",
     "@aether/ui": "workspace:*",

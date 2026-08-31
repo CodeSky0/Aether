@@ -1,0 +1,31 @@
+# Aether Resonance · GitHub App Manifest 骨架
+# 一次性创建 GitHub App 的 manifest（对齐 Phase Shift 规范：issues/PRs/contents/metadata）。
+#
+# 用法（manifest flow）：
+#   1. 把本文件转成 JSON，POST 到 GitHub 拿 code；
+#   2. 用户访问 https://github.com/settings/apps/new?code={code}；
+#   3. GitHub 创建 App 后回调 setup_url 带回 code；
+#   4. 用 packages/@aether/resonance 的 createAppFromManifest(code) 换取凭据；
+#   5. 把 id/slug/pem 写入环境变量（AETHER_GITHUB_APP_ID/SLUG/PRIVATE_KEY）。
+#
+# 运行期 Realm 集成走 pre-created App 的 OAuth install/callback：
+#   GET /api/auth/github/install?realmId=xxx  → GitHub 安装页
+#   GET /api/auth/github/callback             → 保存 installation_id
+name: Aether Resonance
+description: "Aether DevOS — Realm ↔ GitHub 双向共振（Issue↔Thread, PR↔Manifestation）"
+url: https://aether.dev
+public: false
+# hook_attributes:
+#   url: https://aether.dev/api/webhooks/github
+# setup_url: https://aether.dev/api/auth/github/callback
+# redirect_url: https://aether.dev/api/auth/github/callback
+default_events:
+  - issues
+  - issue_comment
+  - pull_request
+  - push
+default_permissions:
+  issues: write
+  pull_requests: write
+  contents: read
+  metadata: read

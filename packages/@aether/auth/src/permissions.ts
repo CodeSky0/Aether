@@ -49,8 +49,20 @@ export const realmMemberRole = realmAccessControl.newRole({
   audit: [],
 })
 
+// viewer：纯只读观察者——可读 Currents/Threads/Entities，不能编辑代码、发评论、
+// 创建 Thread 或推动 Current（converge/drift）。审计可读以支撑只读面板。
+export const realmViewerRole = realmAccessControl.newRole({
+  realm: ['read'],
+  project: ['read'],
+  thread: ['read'],
+  entity: ['read'],
+  current: ['read'],
+  audit: ['read'],
+})
+
 export const realmRoles = {
   owner: realmOwnerRole,
   admin: realmAdminRole,
   member: realmMemberRole,
+  viewer: realmViewerRole,
 }

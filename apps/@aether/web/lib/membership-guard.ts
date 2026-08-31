@@ -7,7 +7,7 @@ import { getDb } from '@/lib/db'
 import { ensureRealmMembership } from '@/lib/membership-provisioning'
 import type { CurrentActor } from '@/lib/auth-guard'
 
-export type RealmMembershipRole = 'owner' | 'admin' | 'member'
+export type RealmMembershipRole = 'owner' | 'admin' | 'member' | 'viewer'
 
 export const MANAGE_MEMBER_ROLES: readonly RealmMembershipRole[] = [
   'owner',
@@ -17,6 +17,7 @@ export const READ_MEMBER_ROLES: readonly RealmMembershipRole[] = [
   'owner',
   'admin',
   'member',
+  'viewer',
 ]
 
 /** 拒绝文案前缀：页面据此把授权失败与内部错误区分开。 */

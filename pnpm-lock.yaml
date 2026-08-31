@@ -163,6 +163,9 @@ importers:
       '@aether/entitlement':
         specifier: workspace:*
         version: link:../../../packages/@aether/entitlement
+      '@aether/resonance':
+        specifier: workspace:*
+        version: link:../../../packages/@aether/resonance
       '@aether/state':
         specifier: workspace:*
         version: link:../../../packages/@aether/state

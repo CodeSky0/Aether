@@ -81,8 +81,8 @@ export interface InviteRealmMemberInput {
 const inviteRealmMemberInputSchema = z.object({
   realmId: realmIdField,
   email: z.email('必须是合法邮箱地址'),
-  role: z.enum(['owner', 'admin', 'member'], {
-    message: 'Invalid membership role: expected owner, admin, or member',
+  role: z.enum(['owner', 'admin', 'member', 'viewer'], {
+    message: 'Invalid membership role: expected owner, admin, member, or viewer',
   }),
 })
 

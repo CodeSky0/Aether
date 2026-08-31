@@ -366,3 +366,66 @@ export const dialogueMessages = pgTable(
     ),
   ],
 )
+// ---- realm_integrations（Resonance：Realm 与外部源的双向共振连接）----
+// 一条记录 = 一个 Realm 与一个外部 provider（GitHub/GitLab/Linear…）的一次安装。
+// GitHub App 模型下 installation_id 由 OAuth 回调写入；installation access token
+// 是 1 小时短时凭据，加密缓存于 encrypted_token，过期后用 App JWT 实时换发。
+// 明文密钥绝不入库；App private key 只存环境变量。软删除走 deleted_at。
+export const integrationProviderEnum = pgEnum('integration_provider', [
+  'github',
+  'gitlab',
+  'linear',
+])
+export const integrationStatusEnum = pgEnum('integration_status', [
+  'active',
+  'disconnected',
+  'error',
+])
+export const realmIntegrations = pgTable(
+  'realm_integrations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    // provider 机器可读；新增 provider 扩展 enum 即可。
+    provider: integrationProviderEnum('provider').notNull(),
+    // GitHub App installation id（数字字符串）；非秘密，但落库便于 webhook 反查。
+    installation_id: text('installation_id').notNull(),
+    // 可选绑定单个 repo（owner/name）；空表示 installation 下全部 repo 共振。
+    repo_full_name: text('repo_full_name'),
+    // provider 特定配置：同步开关、Issue↔Thread 映射策略、webhook 签名密钥哈希等。
+    config: jsonb('config').notNull().default({}),
+    // AES-GCM 加密的 installation access token（base64(payload+iv+tag)）；可空=未缓存。
+    encrypted_token: text('encrypted_token'),
+    token_expires_at: timestamp('token_expires_at', {
+      withTimezone: true,
+    }),
+    status: integrationStatusEnum('status').notNull().default('active'),
+    // 创建者 Better-Auth user id；审计与权限归因。
+    created_by: text('created_by').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // 软删除：非空即视为已断开；查询一律过滤 deleted_at IS NULL
+    deleted_at: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    // 一个 Realm 每个 provider 至多一条活跃连接
+    uniqueIndex('realm_integrations_realm_provider_uniq')
+      .on(t.realm_id, t.provider)
+      .where(sql`${t.deleted_at} IS NULL`),
+    index('realm_integrations_realm_idx').on(t.realm_id),
+    // webhook 回调按 (provider, installation_id) 反查 Realm
+    index('realm_integrations_provider_install_idx').on(
+      t.provider,
+      t.installation_id,
+    ),
+    index('realm_integrations_realm_alive_idx')
+      .on(t.realm_id)
+      .where(sql`${t.deleted_at} IS NULL`),
+  ],
+)
