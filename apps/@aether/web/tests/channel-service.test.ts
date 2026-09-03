@@ -15,6 +15,7 @@ import {
   type BroadcastEvent,
 } from '@/lib/current/broadcast'
 import { serializeUpdate, deserializeUpdate } from '@aether/current-sync'
+import type { UpdateLogDb } from '@aether/db'
 import * as Y from 'yjs'
 
 const CRDT_COLUMN_ORDER = [
@@ -130,7 +131,9 @@ function createMockDb(initialRows: Record<string, unknown>[] = []) {
     return { rows: [] }
   }
 
-  const db = drizzle(callback)
+  // pg-proxy 无 schema 的实例（PgRemoteDatabase）与 UpdateLogDb 的 query 属性
+  // 类型不兼容；测试只走 insert/select，收窄到目标类型即可。
+  const db = drizzle(callback) as unknown as UpdateLogDb
   return { db, store, queries }
 }
 

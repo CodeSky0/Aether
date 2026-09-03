@@ -56,6 +56,8 @@ pnpm test
 | `AETHER_OIDC_SCOPES` | 空格分隔的 OAuth scopes（默认 `openid email profile`） | 否 |
 | `AETHER_OIDC_PKCE` | 设为 `true` 时启用 PKCE | 否 |
 | `AETHER_OIDC_ISSUER` | 显式 issuer 校验（RFC 9207） | 否 |
+| `AETHER_SCIM_TOKEN` | SCIM 2.0 provisioning Bearer token（与 `AETHER_SCIM_REALM_ID` 成对配置，长度 ≥ 16） | 否 |
+| `AETHER_SCIM_REALM_ID` | SCIM 管辖的 Realm id（与 `AETHER_SCIM_TOKEN` 成对配置；Realm 须已绑定真实 organization） | 否 |
 
 ## 项目结构
 
@@ -93,6 +95,12 @@ Web 认证入口位于 `apps/@aether/web/lib/auth.ts`，Better-Auth 路由位于
 外部 IdP（OIDC）登录：配置 `AETHER_OIDC_DISCOVERY_URL` 与
 `AETHER_OIDC_CLIENT_ID`（两者必须成对）后，登录页出现 SSO 按钮；IdP 侧
 回调地址需登记为 `${BETTER_AUTH_URL}/api/auth/oauth2/callback/<providerId>`。
+
+SCIM 2.0 provisioning：配置 `AETHER_SCIM_TOKEN` 与 `AETHER_SCIM_REALM_ID`
+（两者必须成对）后，IdP（Azure AD / Okta 等）可对接
+`${BETTER_AUTH_URL}/api/scim/v2/*` 端点（Users 列表 / 创建 / 查询 / PATCH
+启用禁用 / DELETE 回收），鉴权方式为 Bearer token。SCIM 建立的成员以
+`member` 角色镜像进 Aether membership，全部操作落审计。
 
 Realm membership 邀请与 JIT 镜像位于 `apps/@aether/web/app/actions/membership.ts`，
 Better-Auth organization 操作统一经 `@aether/auth` 封装。

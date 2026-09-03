@@ -30,6 +30,8 @@ Aether 是协同智能的介质：承载人、Entity、代码与上下文共存�
 | [specs/m313-audit-export.md](./specs/m313-audit-export.md) | M3.13 Audit Vault 导出规范 | 22 |
 | [specs/m314-sso-oidc.md](./specs/m314-sso-oidc.md) | M3.14 SSO（OIDC）接入与登录 UI 规范 | 23 |
 | [specs/m314-plan.md](./specs/m314-plan.md) | M3.14 实施计划 | 24 |
+| [specs/m315-scim-provisioning.md](./specs/m315-scim-provisioning.md) | M3.15 SCIM 2.0 Provisioning 端点规范 | 25 |
+| [specs/m315-plan.md](./specs/m315-plan.md) | M3.15 实施计划 | 26 |
 
 ## 阅读顺序
 

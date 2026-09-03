@@ -4,6 +4,8 @@
 // (doc_ref, idempotency_key) 幂等去重，重放以 (realm, doc_ref, seq) 游标
 // 顺序读取。所有访问强制携带 Realm 隔离守卫。
 import { asc, eq, gt, max } from 'drizzle-orm'
+import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
+import type { TablesRelationalConfig } from 'drizzle-orm'
 import { crdtUpdates } from './schema.js'
 import { realmScope } from './guards.js'
 import type { ActorType } from '@aether/types'
@@ -27,18 +29,25 @@ export interface CrdtReplayCursor {
   limit?: number
 }
 
-// The database connection may be instantiated by another workspace package,
-// which can carry a distinct Drizzle type identity in a monorepo build.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type UpdateLogDb = any
+// db 实例可能来自其他 workspace 包（web / converge-server），
+// 与函数级泛型配合承接其 Drizzle 类型（同 @aether/auth 的做法）。
+export type UpdateLogDb<
+  TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
+  TFullSchema extends Record<string, unknown> = Record<string, unknown>,
+  TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+> = PgDatabase<TQueryResult, TFullSchema, TSchema>
 
 /**
  * 追加一条 CRDT 增量并落库。
  * 命中 (doc_ref, idempotency_key) 唯一约束时静默去重，返回 null。
  * 返回的记录携带服务端分配的单调 seq，作为后续重放游标。
  */
-export async function appendCrdtUpdate(
-  db: UpdateLogDb,
+export async function appendCrdtUpdate<
+  TQueryResult extends PgQueryResultHKT,
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+>(
+  db: PgDatabase<TQueryResult, TFullSchema, TSchema>,
   realmId: string,
   input: CrdtUpdateInput,
 ): Promise<CrdtUpdateRecord | null> {
@@ -63,8 +72,12 @@ export async function appendCrdtUpdate(
  * 按 Realm 隔离的游标读取 doc 的增量日志（seq 升序）。
  * 用于 Reconnect Handshake 增量对账与 Server Actions 落库后的重放。
  */
-export async function readCrdtUpdatesSince(
-  db: UpdateLogDb,
+export async function readCrdtUpdatesSince<
+  TQueryResult extends PgQueryResultHKT,
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+>(
+  db: PgDatabase<TQueryResult, TFullSchema, TSchema>,
   realmId: string,
   docRef: string,
   cursor: CrdtReplayCursor = {},
@@ -89,8 +102,12 @@ export async function readCrdtUpdatesSince(
  * 读取 doc 当前已落库的最大 seq，用于初始化重放游标。
  * 从未写入过任何增量时返回 null。
  */
-export async function readCrdtUpdateCursor(
-  db: UpdateLogDb,
+export async function readCrdtUpdateCursor<
+  TQueryResult extends PgQueryResultHKT,
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+>(
+  db: PgDatabase<TQueryResult, TFullSchema, TSchema>,
   realmId: string,
   docRef: string,
 ): Promise<number | null> {

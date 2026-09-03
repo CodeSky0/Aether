@@ -2,7 +2,7 @@
 // 下游经本模块调用 organization API，不直接依赖 Better-Auth。
 import type { AuthInstance } from './instance.js'
 import { and, eq } from 'drizzle-orm'
-import { member } from './schema.js'
+import { member, user } from './schema.js'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import type { TablesRelationalConfig } from 'drizzle-orm'
 import type { realmRoles } from './permissions.js'
@@ -82,6 +82,76 @@ export async function findOrganizationMemberId<
     )
     .limit(1)
   return row?.id ?? null
+}
+
+export interface ProvisionOrganizationMemberInput {
+  organizationId: string
+  userId: string
+  role: RealmOrganizationRole
+}
+
+/**
+ * 无会话添加 organization 成员（system action：body 带 userId，不传 headers）。
+ * SCIM provisioning 等服务器到服务器调用专用；已在成员表时抛 Better-Auth 错误。
+ */
+export function provisionOrganizationMember(
+  auth: AuthInstance,
+  input: ProvisionOrganizationMemberInput,
+) {
+  return auth.api.addMember({
+    body: {
+      organizationId: input.organizationId,
+      userId: input.userId,
+      role: input.role,
+    },
+  })
+}
+
+/**
+ * 无会话移除 organization 成员（直删 member 行）。
+ * 返回是否实际删除（幂等：不存在时 false）。
+ */
+export async function deleteOrganizationMember(
+  db: Parameters<typeof findOrganizationMemberRoles>[0],
+  input: OrganizationMemberRolesInput,
+): Promise<boolean> {
+  const deleted = await db
+    .delete(member)
+    .where(
+      and(
+        eq(member.organizationId, input.organizationId),
+        eq(member.userId, input.userId),
+      ),
+    )
+    .returning({ id: member.id })
+  return deleted.length > 0
+}
+
+export interface OrganizationMemberUser {
+  userId: string
+  role: string
+  name: string
+  email: string
+  createdAt: Date
+}
+
+/** 列出 organization 成员（联 user 表；孤儿 member 行被 inner join 自然丢弃）。 */
+export async function listOrganizationMembers(
+  db: Parameters<typeof findOrganizationMemberRoles>[0],
+  input: { organizationId: string },
+): Promise<OrganizationMemberUser[]> {
+  const rows = await db
+    .select({
+      userId: member.userId,
+      role: member.role,
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
+    })
+    .from(member)
+    .innerJoin(user, eq(member.userId, user.id))
+    .where(eq(member.organizationId, input.organizationId))
+  return rows
 }
 
 export function inviteToOrganization(

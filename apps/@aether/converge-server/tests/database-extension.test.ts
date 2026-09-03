@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest'
 import { drizzle, type RemoteCallback } from 'drizzle-orm/pg-proxy'
 import * as Y from 'yjs'
 import type { Document, onChangePayload, onLoadDocumentPayload } from '@hocuspocus/server'
+import type { UpdateLogDb } from '@aether/db'
 import { AetherDatabaseExtension } from '../src/extensions/database.js'
 import {
   formatDocumentName,
@@ -99,7 +100,9 @@ function createMockDb(initialRows: Record<string, unknown>[] = []) {
     return { rows: [] }
   }
 
-  const db = drizzle(callback)
+  // pg-proxy 无 schema 的实例（PgRemoteDatabase）与 UpdateLogDb 的 query 属性
+  // 类型不兼容；测试只走 insert/select，收窄到目标类型即可。
+  const db = drizzle(callback) as unknown as UpdateLogDb
   return { db, store }
 }
 
