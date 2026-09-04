@@ -1,5 +1,7 @@
 # Aether
 
+[![wakatime](https://wakatime.com/badge/user/83cfde66-b869-4166-b788-7987958b60e1/project/33da1083-5ed4-4349-bae1-7e30bcbf1772.svg)](https://wakatime.com/badge/user/83cfde66-b869-4166-b788-7987958b60e1/project/33da1083-5ed4-4349-bae1-7e30bcbf1772)
+
 > 协同智能的介质：承载人、Entity、代码与上下文共存的原生环境。
 
 Aether 是一个多租户协同智能平台，将 AI Entity 提升为与人类对等的一等公民，通过 CRDT 实现实时协同编辑，通过审计日志保证全链路可追溯。
