@@ -58,6 +58,8 @@ pnpm test
 | `AETHER_OIDC_ISSUER` | 显式 issuer 校验（RFC 9207） | 否 |
 | `AETHER_SCIM_TOKEN` | SCIM 2.0 provisioning Bearer token（与 `AETHER_SCIM_REALM_ID` 成对配置，长度 ≥ 16） | 否 |
 | `AETHER_SCIM_REALM_ID` | SCIM 管辖的 Realm id（与 `AETHER_SCIM_TOKEN` 成对配置；Realm 须已绑定真实 organization） | 否 |
+| `AETHER_INTEGRATION_ENCRYPTION_KEY` | 集成凭据加密密钥（base64 编码 32 字节；GitHub installation token 与 webhook secret 加密入库） | 使用 GitHub App 集成或 Webhook 时必填 |
+| `AETHER_WEBHOOK_DISPATCH_TOKEN` | Webhook 投递扫描端点 Bearer token（Vercel Cron 鉴权；未配置端点 503 fail-closed） | 使用 Webhook 时必填 |
 
 ## 项目结构
 
@@ -80,7 +82,7 @@ Aether/
 │   ├── @aether/ui/               # 共享 UI 组件与设计 tokens
 │   ├── @aether/config/           # TS / ESLint / Tailwind 共享配置
 │   ├── @aether/observability/    # 可观测性层（M3 占位）
-│   └── @aether/resonance/        # 公开 API Gateway（M3 占位）
+│   └── @aether/resonance/        # 公开扩展层（凭据加密 / GitHub App OAuth / Webhook）
 └── docs/                         # 架构规划、里程碑、技术决策、规范文档
 ```
 
@@ -101,6 +103,78 @@ SCIM 2.0 provisioning：配置 `AETHER_SCIM_TOKEN` 与 `AETHER_SCIM_REALM_ID`
 `${BETTER_AUTH_URL}/api/scim/v2/*` 端点（Users 列表 / 创建 / 查询 / PATCH
 启用禁用 / DELETE 回收），鉴权方式为 Bearer token。SCIM 建立的成员以
 `member` 角色镜像进 Aether membership，全部操作落审计。
+
+## 公开 API（Resonance Gateway）
+
+第三方应用（CLI / CI / IDE 插件 / Entity 运行时）通过 `/api/v1` 公开 REST
+API 访问 Aether。鉴权使用 API Key：Realm 设置页（General tab → API Keys）
+由 owner / admin 生成，格式 `aeth_<base64url>`，明文仅生成时展示一次。
+
+```bash
+curl -H "Authorization: Bearer aeth_xxx" \
+  "https://<host>/api/v1/realms/<realmId>/threads?status=open&limit=30"
+```
+
+| 方法 / 路径 | 说明 |
+|---|---|
+| `GET /api/v1` | 端点自描述 |
+| `GET /api/v1/realms` | 密钥绑定 Realm |
+| `GET /api/v1/realms/{realmId}` | Realm 详情 |
+| `GET /api/v1/realms/{realmId}/projects` | 项目列表 |
+| `GET /api/v1/realms/{realmId}/threads` | Thread 列表（`status` 过滤 + `limit`/`offset` 分页） |
+| `POST /api/v1/realms/{realmId}/threads` | 创建 Thread（`project_id` / `title` / `manifestation_url` / `code_anchor`） |
+| `GET /api/v1/threads/{threadId}` | Thread 详情（含 `code_anchor`） |
+| `PATCH /api/v1/threads/{threadId}` | 状态迁移（`open` → `in_review` → `resolved` → `archived`，支持 reopen）与 `manifestation_url` 绑定 / 解绑 |
+| `GET /api/v1/threads/{threadId}/dialogues` | 对话历史（`after=<seq>` 游标） |
+| `POST /api/v1/threads/{threadId}/dialogues` | 追加对话消息（`role`: `user`/`assistant`） |
+| `GET /api/v1/realms/{realmId}/entities` | Entity 列表 |
+| `GET /api/v1/realms/{realmId}/currents` | Current 列表（presence 快照 / 连接状态） |
+| `GET /api/v1/realms/{realmId}/webhooks` | Webhook 订阅列表 |
+| `POST /api/v1/realms/{realmId}/webhooks` | 创建订阅（`name` / `url` 仅 https / `events`，明文 secret 仅返回一次） |
+| `DELETE /api/v1/webhooks/{subscriptionId}` | 删除订阅（软删除，跨 Realm 一律 404） |
+| `GET /api/v1/webhooks/{subscriptionId}/deliveries` | 投递记录（`limit`/`offset` 分页） |
+
+约定：错误体 `{ error: { code, message } }`；时间戳 ISO 8601；鉴权失败 401；
+跨 Realm 访问一律 404。密钥为 member 级权限（读全部资源 + 写 Thread /
+Dialogue）；密钥随创建者失去 Realm active membership 而失效（fail-closed）。
+全部写操作以 `api-key:<keyId>` 服务主体身份落审计。规范详见
+[docs/specs/m316-resonance-gateway.md](docs/specs/m316-resonance-gateway.md)。
+
+### API-First 架构（内部通道消费同一业务核心）
+
+Thread / Dialogue 的业务规则（project 归属校验、Thread 状态机、dialogue_ref
+竞争回写）、同事务审计与 Webhook 事件入队，在
+`lib/resonance/core.ts` 唯一实现（与主体无关、与传输无关）。三个通道全部
+消费该核心：
+
+| 通道 | 鉴权 | 审计归因 |
+|---|---|---|
+| 公开 API（`/api/v1`） | API Key fail-closed 三重校验 | `entity` / `api-key:<keyId>` |
+| 会话 Server Actions | 会话守卫 + Entitlement | `human` / 当前用户（无会话回退 `web-client`） |
+| GitHub 集成（Resonance Bridge） | Webhook HMAC 验签 | `entity` / `github:<installationId>` |
+
+GitHub 侧事件同样遵守 Thread 状态机（人工归档的 Thread 不会被 GitHub 状态
+强制迁移）并触发 Webhook 事件。规范详见
+[docs/specs/m318-internal-api-first.md](docs/specs/m318-internal-api-first.md)。
+
+### Webhook Constellation（出站事件）
+
+创建订阅后，Aether 将 Realm 内事件以 POST 推送到订阅 URL（at-least-once
+语义，接收方按 `x-aether-delivery` 头幂等去重）。事件目录 v1：
+`thread.created` / `thread.status_changed` / `dialogue.message_created`，
+支持 `"*"` 通配。签名协议镜像 GitHub `X-Hub-Signature-256`：
+
+```bash
+# 接收方验签示例（Node）
+const expected = 'sha256=' + crypto.createHmac('sha256', secret)
+  .update(rawBody).digest('hex')
+// 与请求头 x-aether-signature-256 恒时比较
+```
+
+投递失败按指数退避重试（30s 起翻倍、封顶 1h，8 次后 exhausted）；投递扫描
+由 Vercel Cron 每分钟触发 `/api/webhooks/dispatch`（Bearer
+`AETHER_WEBHOOK_DISPATCH_TOKEN` 鉴权，未配置即 503 fail-closed）。规范详见
+[docs/specs/m317-webhook-constellation.md](docs/specs/m317-webhook-constellation.md)。
 
 Realm membership 邀请与 JIT 镜像位于 `apps/@aether/web/app/actions/membership.ts`，
 Better-Auth organization 操作统一经 `@aether/auth` 封装。

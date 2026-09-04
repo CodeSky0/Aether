@@ -3,7 +3,7 @@
 // 用于以该 installation 身份调用 GitHub API（issues / pull_requests / contents）。
 // token 应加密缓存于 realm_integrations.encrypted_token，过期前可复用；
 // 过期后用本函数实时换发。
-import { signAppJwt, type GithubAppCredentials } from './github-jwt.js'
+import { signAppJwt, type GithubAppCredentials } from './github-jwt'
 
 export interface InstallationAccessToken {
   token: string

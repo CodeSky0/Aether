@@ -7,7 +7,7 @@ import {
   bytesToBase64Url,
   stringToBase64Url,
   toArrayBuffer,
-} from './encoding.js'
+} from './encoding'
 
 export interface GithubAppCredentials {
   /** GitHub App numeric id（环境变量 AETHER_GITHUB_APP_ID） */

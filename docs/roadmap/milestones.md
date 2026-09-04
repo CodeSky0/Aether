@@ -108,9 +108,12 @@ graph LR
 - [x] SSO / SCIM 接入
   - 已完成服务端会话主体解析、Realm membership provisioning（邀请 + JIT 镜像）、邀请邮件投递与既有占位 Realm organization 回填、OIDC 外部 IdP 登录与 Web 登录 UI（M3.14），以及 SCIM 2.0 provisioning 端点（Users 列表 / 创建 / PATCH 启用禁用 / DELETE 回收，M3.15）。SSO/SCIM 任务整体收口。
 - [ ] Realm Isolation 生产级验证
-- [ ] Resonance Gateway：全资源公开 API
-- [ ] 内部功能 API 化改造（API-First 兑现）
-- [ ] Webhook Constellation：订阅、签名、重试
+- [x] Resonance Gateway：全资源公开 API
+  - M3.16 已落地 v1 核心资源端点（Realm / Project / Thread / Dialogue / Entity / Current）与 API Key 鉴权（`aeth_` 前缀 + SHA-256 哈希存储 + fail-closed 三重校验），密钥管理入口位于 Realm 设置页，全部写操作以 `api-key:<keyId>` 服务主体落审计。规范见 [specs/m316-resonance-gateway.md](../specs/m316-resonance-gateway.md)。
+- [x] 内部功能 API 化改造（API-First 兑现）
+  - M3.18 已落地业务核心层 `lib/resonance/core.ts`（与主体无关、与传输无关）：project 归属校验、Thread 状态机、dialogue_ref 竞争回写、同事务审计与事务性 outbox 在此唯一实现。三通道全部消费：公开 API（`/api/v1` 薄委托，行为不变）、会话 Server Actions（createThread 补齐审计缺口，归因当前用户）、GitHub 集成（issue/comment/PR 五路径获得状态机 + 审计 + Webhook 事件；人工归档的 Thread 不被 GitHub 状态强制迁移）。审计幂等键前缀改为通道 source（`api-key:` / `session:` / `github:`）。规范见 [specs/m318-internal-api-first.md](../specs/m318-internal-api-first.md)。
+- [x] Webhook Constellation：订阅、签名、重试
+  - M3.17 已落地出站事件订阅（`webhook_subscriptions` / `webhook_deliveries` 事务性 outbox）、HMAC-SHA256 签名协议（`x-aether-signature-256`，明文 secret 仅创建时返回一次、AES-GCM 加密入库）、指数退避重试（30s 基准 × 2ⁿ 封顶 1h，8 次后 exhausted）与 Cron 扫描投递（`/api/webhooks/dispatch`，Bearer token fail-closed 鉴权）。v1 事件目录：`thread.created` / `thread.status_changed` / `dialogue.message_created`。规范见 [specs/m317-webhook-constellation.md](../specs/m317-webhook-constellation.md)。
 - [ ] OAuth App Registry
 - [ ] Resonance Marketplace 内测
 - [ ] Self-host Beacon：Dockerfile 与部署基线

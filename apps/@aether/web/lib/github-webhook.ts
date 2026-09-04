@@ -4,18 +4,23 @@
 //   PR   ↔ Manifestation  （thread.manifestation_url = PR preview URL）
 //   issue_comment → dialogue message（追加到 Thread 对话历史）
 // installation_id 反查 realm_integrations 定位 Realm；project 取该 Realm 首个 project。
-import { threads, projects, dialogueMessages, realmIntegrations } from '@aether/db'
+// M3.18 API-First 收口：全部业务写入走 Resonance 业务核心（core.ts），
+// 与公开 API 共享状态机 / 审计 / Webhook 事件语义。
+import { threads, projects, realmIntegrations } from '@aether/db'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
-import type { PgDatabase } from 'drizzle-orm/pg-core'
 import { createLogger } from '@/lib/logger'
+import {
+  coreAppendDialogue,
+  coreCreateThread,
+  corePatchThread,
+  type CoreActor,
+  type CoreDatabase,
+} from '@/lib/resonance/core'
 
 const logger = createLogger('github-webhook')
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Db = PgDatabase<any, any>
-
 export interface GithubWebhookContext {
-  db: Db
+  db: CoreDatabase
   event: string
   payload: unknown
 }
@@ -26,7 +31,7 @@ export interface GithubWebhookResult {
 }
 
 /** installation_id → Realm integration 反查。 */
-async function findIntegration(db: Db, installationId: string) {
+async function findIntegration(db: CoreDatabase, installationId: string) {
   const [row] = await db
     .select({
       id: realmIntegrations.id,
@@ -47,7 +52,7 @@ async function findIntegration(db: Db, installationId: string) {
 }
 
 /** 取 Realm 首个 project 作为 Thread 落点；无 project 则返回 null。 */
-async function findDefaultProject(db: Db, realmId: string) {
+async function findDefaultProject(db: CoreDatabase, realmId: string) {
   const [row] = await db
     .select({ id: projects.id })
     .from(projects)
@@ -58,7 +63,11 @@ async function findDefaultProject(db: Db, realmId: string) {
 }
 
 /** 按 GitHub issue id 查找已关联的 Thread。 */
-async function findThreadByIssueId(db: Db, realmId: string, issueId: number) {
+async function findThreadByIssueId(
+  db: CoreDatabase,
+  realmId: string,
+  issueId: number,
+) {
   const [row] = await db
     .select({ id: threads.id, dialogue_ref: threads.dialogue_ref })
     .from(threads)
@@ -133,15 +142,20 @@ export async function handleGithubEvent(
     return { status: 'ignored', reason: `no Realm integration for installation ${installationId}` }
   }
   const realmId = integration.realm_id
+  const actor: CoreActor = {
+    actorType: 'entity',
+    actorId: `github:${installationId}`,
+    source: 'github',
+  }
 
   try {
     switch (event) {
       case 'issues':
-        return await handleIssues(db, realmId, payload as IssuesPayload)
+        return await handleIssues(db, realmId, actor, payload as IssuesPayload)
       case 'issue_comment':
-        return await handleIssueComment(db, realmId, payload as IssueCommentPayload)
+        return await handleIssueComment(db, realmId, actor, payload as IssueCommentPayload)
       case 'pull_request':
-        return await handlePullRequest(db, realmId, payload as PullRequestPayload)
+        return await handlePullRequest(db, realmId, actor, payload as PullRequestPayload)
       case 'push':
         return { status: 'ignored', reason: 'push events not mapped yet' }
       default:
@@ -161,8 +175,9 @@ function extractInstallationId(event: string, payload: unknown): string | null {
 }
 
 async function handleIssues(
-  db: Db,
+  db: CoreDatabase,
   realmId: string,
+  actor: CoreActor,
   payload: IssuesPayload,
 ): Promise<GithubWebhookResult> {
   const { action, issue, repository } = payload
@@ -170,35 +185,60 @@ async function handleIssues(
 
   if (action === 'opened' || action === 'reopened') {
     if (existing) {
+      // 标题镜像是字段级同步（非业务状态），保持直接写；
+      // 状态同步走核心状态机。
       await db
         .update(threads)
-        .set({ status: 'open', title: issue.title, updated_at: new Date() })
+        .set({ title: issue.title, updated_at: new Date() })
         .where(eq(threads.id, existing.id))
-      return { status: 'processed', reason: `thread ${existing.id} reopened` }
+      const result = await corePatchThread(db, {
+        threadId: existing.id,
+        realmId,
+        status: 'open',
+        actor,
+      })
+      if (result.ok) {
+        return { status: 'processed', reason: `thread ${existing.id} synced to open` }
+      }
+      // 状态机拒绝（如人工归档后的 Thread）：人工决策优先于 GitHub 状态，容忍忽略。
+      logger.warn('github issue sync skipped invalid transition', {
+        threadId: existing.id,
+        reason: result.message,
+      })
+      return { status: 'ignored', reason: result.message }
     }
     const project = await findDefaultProject(db, realmId)
     if (!project) {
       return { status: 'ignored', reason: 'realm has no project to bind thread' }
     }
-    const [created] = await db
-      .insert(threads)
-      .values({
-        realm_id: realmId,
-        project_id: project.id,
-        title: issue.title,
-        status: 'open',
-        code_anchor: githubIssueAnchor(issue, repository.full_name),
-      })
-      .returning({ id: threads.id })
-    return { status: 'processed', reason: `thread ${created?.id} created from issue #${issue.number}` }
+    const created = await coreCreateThread(db, {
+      realmId,
+      projectId: project.id,
+      title: issue.title,
+      codeAnchor: githubIssueAnchor(issue, repository.full_name),
+      actor,
+    })
+    if (!created.ok) {
+      return { status: 'ignored', reason: created.message }
+    }
+    return { status: 'processed', reason: `thread ${created.data.id} created from issue #${issue.number}` }
   }
 
   if (action === 'closed' && existing) {
-    await db
-      .update(threads)
-      .set({ status: 'resolved', updated_at: new Date() })
-      .where(eq(threads.id, existing.id))
-    return { status: 'processed', reason: `thread ${existing.id} resolved` }
+    const result = await corePatchThread(db, {
+      threadId: existing.id,
+      realmId,
+      status: 'resolved',
+      actor,
+    })
+    if (result.ok) {
+      return { status: 'processed', reason: `thread ${existing.id} resolved` }
+    }
+    logger.warn('github issue close skipped invalid transition', {
+      threadId: existing.id,
+      reason: result.message,
+    })
+    return { status: 'ignored', reason: result.message }
   }
 
   if (action === 'edited' && existing) {
@@ -213,8 +253,9 @@ async function handleIssues(
 }
 
 async function handleIssueComment(
-  db: Db,
+  db: CoreDatabase,
   realmId: string,
+  actor: CoreActor,
   payload: IssueCommentPayload,
 ): Promise<GithubWebhookResult> {
   if (payload.action !== 'created') {
@@ -225,34 +266,33 @@ async function handleIssueComment(
     return { status: 'ignored', reason: 'no thread bound to issue' }
   }
 
-  let dialogueRef = existing.dialogue_ref
-  if (!dialogueRef) {
-    dialogueRef = crypto.randomUUID()
-    await db
-      .update(threads)
-      .set({ dialogue_ref: dialogueRef, updated_at: new Date() })
-      .where(eq(threads.id, existing.id))
-  }
-
-  await db.insert(dialogueMessages).values({
-    realm_id: realmId,
-    dialogue_id: dialogueRef,
-    actor_type: 'human',
-    actor_id: payload.comment.user?.login ?? 'github',
+  const result = await coreAppendDialogue(db, {
+    threadId: existing.id,
+    realmId,
     role: 'user',
     content: payload.comment.body,
+    actor,
+    // 消息归因 GitHub 评论者（human），审计归因 installation（entity）
+    messageActor: {
+      actorType: 'human',
+      actorId: payload.comment.user?.login ?? 'github',
+    },
     metadata: {
       source: 'github',
       commentUrl: payload.comment.html_url,
       issueNumber: payload.issue.number,
     },
   })
+  if (!result.ok) {
+    return { status: 'ignored', reason: result.message }
+  }
   return { status: 'processed', reason: 'dialogue message appended' }
 }
 
 async function handlePullRequest(
-  db: Db,
+  db: CoreDatabase,
   realmId: string,
+  actor: CoreActor,
   payload: PullRequestPayload,
 ): Promise<GithubWebhookResult> {
   if (payload.action !== 'opened' && payload.action !== 'reopened') {
@@ -274,9 +314,14 @@ async function handlePullRequest(
   if (!linked) {
     return { status: 'ignored', reason: 'no thread bound to PR issue number' }
   }
-  await db
-    .update(threads)
-    .set({ manifestation_url: payload.pull_request.html_url, updated_at: new Date() })
-    .where(eq(threads.id, linked.id))
+  const result = await corePatchThread(db, {
+    threadId: linked.id,
+    realmId,
+    manifestationUrl: payload.pull_request.html_url,
+    actor,
+  })
+  if (!result.ok) {
+    return { status: 'ignored', reason: result.message }
+  }
   return { status: 'processed', reason: `manifestation url linked to thread ${linked.id}` }
 }

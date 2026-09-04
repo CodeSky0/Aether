@@ -3,6 +3,7 @@
 // schema 是 @aether/types 领域类型的运行期实现映射；类型保持同构。
 import {
   customType,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -427,5 +428,93 @@ export const realmIntegrations = pgTable(
     index('realm_integrations_realm_alive_idx')
       .on(t.realm_id)
       .where(sql`${t.deleted_at} IS NULL`),
+  ],
+)
+// ---- webhook_subscriptions（Webhook Constellation：出站事件订阅）----
+// 一条记录 = 一个 Realm 的事件回调端点订阅。签名密钥明文绝不入库：
+// AES-GCM 加密存 encrypted_secret（密钥 AETHER_INTEGRATION_ENCRYPTION_KEY），
+// 明文 whsec_ 仅创建响应返回一次；secret_prefix 供列表识别。
+// events 为事件类型数组（jsonb），['*'] 通配全部；目录见 @aether/resonance webhooks.ts。
+export const webhookDeliveryStatusEnum = pgEnum('webhook_delivery_status', [
+  // 待投递（含退避等待）；next_attempt_at 到期才可被扫描领取
+  'pending',
+  // 2xx 投递成功
+  'succeeded',
+  // 达到重试上限（MAX_WEBHOOK_ATTEMPTS）或不可恢复错误
+  'exhausted',
+  // 订阅已删除，剩余投递作废
+  'canceled',
+])
+export const webhookSubscriptions = pgTable(
+  'webhook_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    // 展示名（如 "CI 通知"）
+    name: text('name').notNull(),
+    // 回调端点；仅接受 https（zod 层校验），杜绝明文回流出站
+    url: text('url').notNull(),
+    // 事件类型选择数组；['*'] 通配全部
+    events: jsonb('events').notNull(),
+    // AES-GCM 加密的签名密钥 base64(iv‖ct‖tag)
+    encrypted_secret: text('encrypted_secret').notNull(),
+    // 明文前 12 字符（whsec_9f2K…），列表识别用
+    secret_prefix: text('secret_prefix').notNull(),
+    // 创建者 Better-Auth user id（API Key 场景取密钥创建者）；审计归因
+    created_by: text('created_by').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // 软删除：非空即失效；查询一律过滤 deleted_at IS NULL
+    deleted_at: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('webhook_subscriptions_realm_idx').on(t.realm_id),
+    index('webhook_subscriptions_realm_alive_idx')
+      .on(t.realm_id)
+      .where(sql`${t.deleted_at} IS NULL`),
+  ],
+)
+// ---- webhook_deliveries（事务性 outbox：与业务变更同事务入队，Cron 扫描投递）----
+// 业务回滚则投递行一并回滚（不产生幻影事件）；投递语义 at-least-once，
+// 接收方按 x-aether-delivery（delivery id）幂等去重。
+export const webhookDeliveries = pgTable(
+  'webhook_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    subscription_id: uuid('subscription_id')
+      .notNull()
+      .references(() => webhookSubscriptions.id),
+    // 冗余 realm_id：隔离查询与统计免 join
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    event_type: text('event_type').notNull(),
+    // 事件信封 { type, created_at, realm: {id, slug}, data }
+    payload: jsonb('payload').notNull(),
+    status: webhookDeliveryStatusEnum('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    // 下次可投递时间；退避调度由该列驱动
+    next_attempt_at: timestamp('next_attempt_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    last_response_status: integer('last_response_status'),
+    last_error: text('last_error'),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    delivered_at: timestamp('delivered_at', { withTimezone: true }),
+  },
+  (t) => [
+    // 扫描队列：status + 到期时间
+    index('webhook_deliveries_queue_idx').on(t.status, t.next_attempt_at),
+    // 订阅方投递历史查询
+    index('webhook_deliveries_subscription_idx').on(t.subscription_id, t.created_at),
+    index('webhook_deliveries_realm_idx').on(t.realm_id),
   ],
 )

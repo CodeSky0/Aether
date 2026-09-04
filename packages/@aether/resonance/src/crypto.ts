@@ -3,7 +3,7 @@
 // 密钥由宿主注入（AETHER_INTEGRATION_ENCRYPTION_KEY，base64 编码的 32 字节）。
 // 输出格式：base64(iv(12) ‖ ciphertext ‖ tag(16))，GCM 认证 tag 附在密文末尾。
 // 解密时校验 tag——篡改或密钥不匹配即抛错，满足"明文密钥绝不入库"的戒律。
-import { base64ToBytes, bytesToBase64, toArrayBuffer } from './encoding.js'
+import { base64ToBytes, bytesToBase64, toArrayBuffer } from './encoding'
 
 const IV_BYTES = 12
 const KEY_BYTES = 32

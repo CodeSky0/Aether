@@ -1,13 +1,20 @@
 // @aether/web · Thread 列表与创建 Server Actions
 // Production 约定：入参过 zod 校验，返回 ActionResult，软删除 Thread 一律过滤。
+// M3.18 API-First 收口：createThread 消费 Resonance 业务核心（core.ts），
+// 与公开 API 共享同一业务实现（校验 + 审计 + Webhook 事件，同事务）。
 'use server'
 import { getDb } from '@/lib/db'
 import { threads, projects } from '@aether/db'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
-import { requireEntitlement, requireRealmAccess } from '@/lib/auth-guard'
+import {
+  requireEntitlement,
+  requireRealmAccess,
+  resolveCurrentActor,
+} from '@/lib/auth-guard'
 import { runGuarded, realmIdField, uuidField } from '@/lib/action-result'
 import type { ActionResult } from '@/lib/action-result'
+import { coreCreateThread } from '@/lib/resonance/core'
 
 export interface ThreadRow {
   id: string
@@ -72,6 +79,7 @@ const createThreadInputSchema = z.object({
 /**
  * 创建新 Thread。
  * code_anchor 记录发起 Thread 时的编辑器选区（如有）。
+ * 会话通道审计归因当前用户（无会话回退 web-client，与 Current 通道一致）。
  */
 export async function createThread(
   input: CreateThreadInput,
@@ -84,21 +92,27 @@ export async function createThread(
       action: 'create',
       projectId: parsed.projectId,
     })
-    const db = getDb()
-    const [thread] = await db
-      .insert(threads)
-      .values({
-        realm_id: parsed.realmId,
-        project_id: parsed.projectId,
-        title: parsed.title,
-        manifestation_url: parsed.manifestationUrl ?? null,
-        ...(parsed.codeAnchor ? { code_anchor: { selection: parsed.codeAnchor } } : {}),
-      })
-      .returning({ id: threads.id, title: threads.title })
-    if (!thread) {
-      throw new Error('Failed to create thread')
+    const sessionActor = await resolveCurrentActor()
+    const actor = sessionActor ?? {
+      actorType: 'human' as const,
+      actorId: 'web-client',
     }
-    return thread
+    const result = await coreCreateThread(getDb(), {
+      realmId: parsed.realmId,
+      projectId: parsed.projectId,
+      title: parsed.title,
+      ...(parsed.manifestationUrl !== undefined
+        ? { manifestationUrl: parsed.manifestationUrl }
+        : {}),
+      ...(parsed.codeAnchor !== undefined
+        ? { codeAnchor: { selection: parsed.codeAnchor } }
+        : {}),
+      actor: { ...actor, source: 'session' },
+    })
+    if (!result.ok) {
+      throw new Error(result.message)
+    }
+    return { id: result.data.id, title: result.data.title }
   })
 }
 

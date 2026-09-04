@@ -32,6 +32,12 @@ Aether 是协同智能的介质：承载人、Entity、代码与上下文共存�
 | [specs/m314-plan.md](./specs/m314-plan.md) | M3.14 实施计划 | 24 |
 | [specs/m315-scim-provisioning.md](./specs/m315-scim-provisioning.md) | M3.15 SCIM 2.0 Provisioning 端点规范 | 25 |
 | [specs/m315-plan.md](./specs/m315-plan.md) | M3.15 实施计划 | 26 |
+| [specs/m316-resonance-gateway.md](./specs/m316-resonance-gateway.md) | M3.16 Resonance Gateway 公开 API 规范 | 27 |
+| [specs/m316-plan.md](./specs/m316-plan.md) | M3.16 实施计划 | 28 |
+| [specs/m317-webhook-constellation.md](./specs/m317-webhook-constellation.md) | M3.17 Webhook Constellation 出站事件订阅规范 | 29 |
+| [specs/m317-plan.md](./specs/m317-plan.md) | M3.17 实施计划 | 30 |
+| [specs/m318-internal-api-first.md](./specs/m318-internal-api-first.md) | M3.18 内部功能 API 化改造（API-First 兑现）规范 | 31 |
+| [specs/m318-plan.md](./specs/m318-plan.md) | M3.18 实施计划 | 32 |
 
 ## 阅读顺序
 

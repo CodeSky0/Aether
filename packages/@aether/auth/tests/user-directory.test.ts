@@ -61,7 +61,7 @@ describe('user-directory', () => {
   })
 
   it('creates users with a generated id and emailVerified defaulting to true', async () => {
-    const values = vi.fn(() => ({
+    const values = vi.fn((_payload: Record<string, unknown>) => ({
       returning: vi.fn().mockResolvedValue([baseRow]),
     }))
     const insert = vi.fn(() => ({ values }))
@@ -72,13 +72,13 @@ describe('user-directory', () => {
       email: 'ada@example.com',
     })
 
-    const payload = values.mock.calls[0]?.[0] as Record<string, unknown>
+    const payload = values.mock.calls[0]?.[0]
     expect(payload).toMatchObject({
       name: 'Ada',
       email: 'ada@example.com',
       emailVerified: true,
     })
-    expect(payload.id).toMatch(/^[0-9a-f-]{36}$/)
+    expect(payload?.id).toMatch(/^[0-9a-f-]{36}$/)
   })
 })
 

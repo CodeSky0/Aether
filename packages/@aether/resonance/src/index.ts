@@ -9,23 +9,41 @@ export {
   bytesToBase64,
   bytesToBase64Url,
   stringToBase64Url,
-} from './encoding.js'
+} from './encoding'
 export {
   encryptSecret,
   decryptSecret,
   importAesKey,
   ResonanceCryptoError,
-} from './crypto.js'
-export { signAppJwt, GithubJwtError, type GithubAppCredentials } from './github-jwt.js'
+} from './crypto'
+export { signAppJwt, GithubJwtError, type GithubAppCredentials } from './github-jwt'
 export {
   fetchInstallationAccessToken,
   GithubInstallationError,
   type InstallationAccessToken,
-} from './github-installation.js'
+} from './github-installation'
 export {
   createAppFromManifest,
   aetherGithubAppManifest,
   GithubManifestError,
   type GithubAppManifest,
   type GithubAppCreationResult,
-} from './github-manifest.js'
+} from './github-manifest'
+export {
+  WEBHOOK_EVENT_TYPES,
+  WEBHOOK_ALL_EVENTS,
+  MAX_WEBHOOK_ATTEMPTS,
+  WEBHOOK_BACKOFF_BASE_MS,
+  WEBHOOK_BACKOFF_CAP_MS,
+  WEBHOOK_SECRET_PREFIX,
+  generateWebhookSecret,
+  signWebhookPayload,
+  verifyWebhookSignature,
+  computeWebhookBackoffMs,
+  buildWebhookHeaders,
+  isWebhookEventType,
+  isWebhookEventSelection,
+  type WebhookEventType,
+  type WebhookEventSelection,
+  type WebhookHeadersInput,
+} from './webhooks'

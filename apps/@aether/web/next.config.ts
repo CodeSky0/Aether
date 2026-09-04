@@ -10,6 +10,7 @@ const config: NextConfig = {
   transpilePackages: [
     '@aether/current-sync',
     '@aether/db',
+    '@aether/resonance',
     '@aether/state',
     '@aether/types',
     '@aether/ui',
