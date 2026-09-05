@@ -118,6 +118,7 @@ graph LR
   - M3.19 已落地 OAuth 2.0 授权码流程（+ PKCE S256）：App 注册 / secret 轮换 / 软删除（`oauth_apps`，owner/admin）、同意页授权与 token 兑换（`/oauth/authorize` + `/api/oauth/token`，code 一次性 10 分钟、sha256 哈希入库、同 (app, user, realm) 轮换吊销）、`aoat_` 令牌双通道鉴权（`read`/`write` scope 按 method 强制，403 `insufficient_scope`）、成员自助授权吊销（Realm 设置 → Integrations）。管理 UI 与全部凭据明文仅一次性展示策略与 API Key 一致。规范见 [specs/m319-oauth-app-registry.md](../specs/m319-oauth-app-registry.md)。
 - [x] Realm Isolation 生产级验证
   - M3.20 已落地跨 Realm 隔离测试套件（`tests/realm-isolation.test.ts`，16 用例）：覆盖三层守卫——令牌绑定单一 Realm、`requireRealmMatch` 路径守卫（`/realms/B/*` → 404 不触 db）、`requireThreadRow` 资源守卫（`/threads/<B-thread>` GET/PATCH/dialogues → 404）、列表隔离（A 令牌仅收 A 行）、写隔离（A 令牌引用 B 的 project_id → 400 invalid_project）、同 Realm 正向回归。验证 M3.16–M3.19 全链路多租户边界不可突破。规范见 [specs/m320-realm-isolation-verification.md](../specs/m320-realm-isolation-verification.md)。
+  - M3.21 已落地 Webhook 投递跨 Realm 隔离端到端测试套件（`tests/webhook-realm-isolation.test.ts`，10 用例）：覆盖异步投递链路三层隔离——入队隔离（`enqueueWebhookDeliveries` 按 `realm_id` 过滤订阅，A 事件仅入 A 订阅）、投递隔离（`dispatchPendingWebhooks` 扫描时 A delivery 仅投递到 A 订阅 url，签名由各自订阅 secret 生成互不串用）、订阅方查询/删除隔离（令牌 A 查/删 B 订阅 → 404）、同 Realm 正向回归。补齐 M3.20 留出的"依赖 Cron + 真实 HTTP"缺口。规范见 [specs/m321-webhook-realm-isolation-e2e.md](../specs/m321-webhook-realm-isolation-e2e.md)。
 - [ ] Resonance Marketplace 内测
 - [ ] Self-host Beacon：Dockerfile 与部署基线
 - [ ] 性能优化：PPR / Edge / 冷启动
