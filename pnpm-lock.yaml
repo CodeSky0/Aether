@@ -23,6 +23,9 @@ importers:
       '@aether/db':
         specifier: workspace:*
         version: link:../../../packages/@aether/db
+      '@aether/observability':
+        specifier: workspace:*
+        version: link:../../../packages/@aether/observability
       '@aether/types':
         specifier: workspace:*
         version: link:../../../packages/@aether/types
@@ -465,6 +468,9 @@ importers:
       typescript:
         specifier: ^6.0.0
         version: 6.0.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.33.0)(supports-color@10.0.0)(tsx@4.23.11)
 
   packages/@aether/resonance:
     dependencies:

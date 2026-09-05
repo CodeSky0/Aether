@@ -122,7 +122,8 @@ graph LR
 - [ ] Resonance Marketplace 内测
 - [ ] Self-host Beacon：Dockerfile 与部署基线
 - [ ] 性能优化：PPR / Edge / 冷启动
-- [ ] Converge Telemetry 采集上线
+- [x] Converge Telemetry 采集上线
+  - M3.22 已落地 `@aether/observability` 指标层（Counter / Histogram / MetricsRegistry + Prometheus 文本导出，纯内存无外部依赖）与 converge-server 埋点：`onLoadDocument` 冷启动延迟（`converge_cold_start_seconds`）+ applyUpdate 失败计数（`converge_crdt_apply_failures_total`）、`onChange` 持久化延迟（`converge_persist_seconds`）+ 幂等键命中重复操作计数（`converge_persist_duplicates_total`）、`onDisconnect` 连接计数（`converge_connections_total`）。`/metrics` 端点（vercel.ts 路由，Prometheus 文本格式 `text/plain; version=0.0.4`）与 WebSocket 同实例共享 registry。`AETHER_CONVERGE_TELEMETRY_DISABLED=1` 可关停（no-op）。对齐 risks.md 风险 1/2/6 监控指标，解锁 M3 性能优化客观评估。规范见 [specs/m322-converge-telemetry.md](../specs/m322-converge-telemetry.md)。
 
 **退出标准**：
 - 独立第三方应用仅凭公开 API 完成一次完整协同闭环。

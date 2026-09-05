@@ -4,14 +4,24 @@
   "description": "Aether 可观测性层：日志、遥测、Converge Telemetry 采集。M3 里程碑功能。",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./package.json": "./package.json"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@aether/types": "workspace:*"
@@ -20,6 +30,7 @@
     "@aether/config": "workspace:*",
     "@types/node": "^26.2.0",
     "eslint": "^9.39.5",
-    "typescript": "^6.0.0"
+    "typescript": "^6.0.0",
+    "vitest": "^3.2.4"
   }
 }

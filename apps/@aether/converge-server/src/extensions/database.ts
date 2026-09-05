@@ -17,8 +17,11 @@ import {
 import type { ActorType } from '@aether/types'
 import { applyUpdate } from 'yjs'
 import { parseDocumentName } from '../document-name.js'
+import type { ConvergeMetrics } from '../telemetry.js'
+
 /** 单次读取增量的分页大小（防止极端情况下的 OOM） */
 const LOAD_PAGE_SIZE = 10_000
+
 export interface AetherDatabaseExtensionOptions {
   /** drizzle 实例（测试时注入 mock；运行时用 getDb()） */
   db: UpdateLogDb
@@ -26,6 +29,8 @@ export interface AetherDatabaseExtensionOptions {
   actorType?: ActorType
   /** 默认 actorId */
   actorId?: string
+  /** Converge Telemetry 指标（可选；未注入时无埋点，行为不变） */
+  metrics?: ConvergeMetrics
 }
 /**
  * Aether Database Extension for Hocuspocus。
@@ -36,11 +41,13 @@ export class AetherDatabaseExtension implements Extension {
   private readonly db: UpdateLogDb
   private readonly defaultActorType: ActorType
   private readonly defaultActorId: string
+  private readonly metrics: ConvergeMetrics | undefined
   private idempotencyCounter = 0
   public constructor(options: AetherDatabaseExtensionOptions) {
     this.db = options.db
     this.defaultActorType = options.actorType ?? 'entity'
     this.defaultActorId = options.actorId ?? 'hocuspocus-server'
+    this.metrics = options.metrics
   }
   /**
    * 冷启动：读取所有增量合并成全量状态应用到 Document。
@@ -50,6 +57,7 @@ export class AetherDatabaseExtension implements Extension {
     data: onLoadDocumentPayload,
   ): Promise<void> {
     const { realmId, docRef } = parseDocumentName(data.documentName)
+    const start = performance.now()
     // P2-14 修复：循环翻页加载全部增量，不再静默截断前 10000 条
     let afterSeq = 0
     let totalLoaded = 0
@@ -60,7 +68,14 @@ export class AetherDatabaseExtension implements Extension {
       })
       if (records.length === 0) break
       for (const record of records) {
-        applyUpdate(data.document, record.payload)
+        try {
+          applyUpdate(data.document, record.payload)
+        } catch {
+          this.metrics?.crdtApplyFailuresTotal.inc()
+          throw new Error(
+            `Failed to apply CRDT update seq=${record.seq} for ${docRef}`,
+          )
+        }
       }
       totalLoaded += records.length
       afterSeq = records[records.length - 1]!.seq
@@ -73,6 +88,7 @@ export class AetherDatabaseExtension implements Extension {
           'consider compacting the document to a snapshot for faster cold starts.',
       )
     }
+    this.metrics?.coldStartSeconds.observe((performance.now() - start) / 1000)
   }
   /**
    * 实时追加：每条编辑的增量 update 落库到 crdt_updates。
@@ -83,13 +99,18 @@ export class AetherDatabaseExtension implements Extension {
   ): Promise<void> {
     const { realmId, docRef } = parseDocumentName(data.documentName)
     const actor = this.resolveActor(data)
-    await appendCrdtUpdate(this.db, realmId, {
+    const start = performance.now()
+    const inserted = await appendCrdtUpdate(this.db, realmId, {
       docRef,
       payload: data.update,
       actorType: actor.actorType,
       actorId: actor.actorId,
       idempotencyKey: this.generateIdempotencyKey(data.socketId),
     })
+    this.metrics?.persistSeconds.observe((performance.now() - start) / 1000)
+    if (inserted === null) {
+      this.metrics?.persistDuplicatesTotal.inc()
+    }
   }
   /**
    * 解析 actor 身份。

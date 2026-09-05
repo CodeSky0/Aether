@@ -5,6 +5,11 @@ import { Hocuspocus, type Extension } from '@hocuspocus/server'
 import { getDb } from './db.js'
 import { AetherDatabaseExtension } from './extensions/database.js'
 import { createRedisExtension } from './extensions/redis.js'
+import {
+  createConvergeMetrics,
+  getConvergeMetrics,
+  type ConvergeMetrics,
+} from './telemetry.js'
 
 export { Hocuspocus }
 
@@ -13,6 +18,8 @@ export interface HocuspocusFactoryOptions {
   port?: number
   /** 绑定地址（仅独立进程模式使用） */
   address?: string
+  /** Converge Telemetry 指标（可选；默认用全局单例，测试时可注入独立实例） */
+  metrics?: ConvergeMetrics
 }
 
 /**
@@ -28,7 +35,10 @@ export async function createHocuspocus(
   options: HocuspocusFactoryOptions = {},
 ): Promise<Hocuspocus> {
   const db = getDb()
-  const extensions: Extension[] = [new AetherDatabaseExtension({ db })]
+  const metrics = options.metrics ?? getConvergeMetrics()
+  const extensions: Extension[] = [
+    new AetherDatabaseExtension({ db, metrics }),
+  ]
 
   if (process.env.REDIS_URL) {
     const redisExt = await createRedisExtension({ redisUrl: process.env.REDIS_URL })
@@ -52,7 +62,7 @@ export async function createHocuspocus(
       return Promise.resolve()
     },
     onDisconnect(data) {
-      // M1 阶段仅日志；后续可在此清理 presence 或触发审计
+      metrics.connectionsTotal.inc(1, { status: 'success' })
       if (process.env.LOG_LEVEL === 'debug') {
         // eslint-disable-next-line no-console
         console.log(`[converge-server] disconnect: ${data.documentName}`)
@@ -61,3 +71,5 @@ export async function createHocuspocus(
     },
   })
 }
+
+export { createConvergeMetrics }

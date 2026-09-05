@@ -12,6 +12,7 @@ import http from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { WebSocketServer } from 'ws'
 import { type Hocuspocus, createHocuspocus } from './hocuspocus.js'
+import { getConvergeMetrics } from './telemetry.js'
 
 // 延迟初始化单例：模块加载不触碰 DATABASE_URL / REDIS_URL，
 // 首次 WebSocket 连接到达时才创建 Hocuspocus 实例（同一函数实例内共享）。
@@ -26,7 +27,15 @@ function getHocuspocus(): Promise<Hocuspocus> {
 
 const server = http.createServer()
 
-server.on('request', (_req: IncomingMessage, res: ServerResponse) => {
+server.on('request', (req: IncomingMessage, res: ServerResponse) => {
+  if (req.url === '/metrics') {
+    const text = getConvergeMetrics().registry.render()
+    res.writeHead(200, {
+      'Content-Type': 'text/plain; version=0.0.4; charset=utf-8',
+    })
+    res.end(text)
+    return
+  }
   res.writeHead(200, { 'Content-Type': 'text/plain' })
   res.end('Aether converge-server (Vercel Function) is running')
 })

@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@aether/db": "workspace:*",
+    "@aether/observability": "workspace:*",
     "@aether/types": "workspace:*",
     "@hocuspocus/extension-redis": "^2.15.3",
     "@hocuspocus/server": "^2.15.0",
