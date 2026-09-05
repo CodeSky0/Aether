@@ -18,7 +18,7 @@
 | 数据持久化 | PostgreSQL + Drizzle ORM + Drizzle Kit | Prisma | Drizzle 轻量、SQL 原生、serverless 友好，schema 即类型 | 迁移纪律要求高 → 固化迁移流程（见 [team-norms.md](./team-norms.md)） |
 | 认证与身份 | Better-Auth | Auth.js | 组织模型原生支持 Realm > Project > Member 三级嵌套，内建 SSO/SCIM | 生态较新 → 锁定文档版本，`@aether/auth` 适配层隔离升级冲击 |
 | 组件原语 | Radix UI + shadcn/ui 模式 | MUI | 无样式原语与 Tailwind v4 令牌无缝拼接 | — |
-| 部署 | Vercel（Edge Functions / Blob / Postgres） | — | 与 Turborepo remote cache、分支 Manifestation 深度集成 | 厂商锁定 → 保留 Dockerfile 与自托管基线 |
+| 部署 | Vercel（web / editor-host）+ Cloudflare Workers Durable Objects（converge-server） | — | Vercel 与 Turborepo remote cache、分支 Manifestation 深度集成；CF Workers 提供原生 WebSocket、零冷启动、零成本 | converge-server 厂商锁定 → 保留 Node 自托管入口（src/index.ts）作为回退 |
 
 ## 各选型引入时机
 

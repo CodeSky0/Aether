@@ -46,6 +46,7 @@ Aether 是协同智能的介质：承载人、Entity、代码与上下文共存�
 | [specs/m321-plan.md](./specs/m321-plan.md) | M3.21 实施计划 | 38 |
 | [specs/m322-converge-telemetry.md](./specs/m322-converge-telemetry.md) | M3.22 Converge Telemetry 采集上线规范 | 39 |
 | [specs/m322-plan.md](./specs/m322-plan.md) | M3.22 实施计划 | 40 |
+| [deployment.md](./deployment.md) | 部署指南（Vercel + Cloudflare Workers Durable Objects） | — |
 
 ## 阅读顺序
 

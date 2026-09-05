@@ -5,8 +5,8 @@
 //   GET /health            → 健康检查
 //   GET /ws/:docName       → WebSocket 升级，按 docName 路由到对应 YjsRoom DO
 //
-// 与 Node/Vercel 部署（src/index.ts + api/ws.ts）的关系：
-//   三者共用 @aether 的文档契约，CF 入口不依赖任何 Node API，
+// 与 Node 自托管部署（src/index.ts）的关系：
+//   两者共用 @aether 的文档契约，CF 入口不依赖任何 Node API，
 //   部署目标互不影响；生产推荐 CF（免费、零冷启动、原生 WebSocket）。
 //
 // 部署：pnpm --filter @aether/converge-server deploy:cf

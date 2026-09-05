@@ -1,6 +1,6 @@
 // @aether/converge-server · Hocuspocus 实例工厂
-// 独立进程入口（src/index.ts）与 Vercel Function 入口（src/vercel.ts）
-// 共享同一套 Hocuspocus 配置，避免两份配置漂移。
+// 独立进程入口（src/index.ts）使用此 Hocuspocus 配置。
+// Cloudflare Workers 部署（cf/index.ts）使用独立的 Durable Object 实现，不依赖此工厂。
 import { Hocuspocus, type Extension } from '@hocuspocus/server'
 import { getDb } from './db.js'
 import { AetherDatabaseExtension } from './extensions/database.js'

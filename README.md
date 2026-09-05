@@ -88,9 +88,10 @@ Aether/
 └── docs/                         # 架构规划、里程碑、技术决策、规范文档
 ```
 
-三个应用均可部署到 Vercel（web / editor-host / converge-server 各为一个
-Vercel 项目，Root Directory 分别指向对应 app 目录）。完整步骤与环境变量清单
-见 [docs/vercel-deploy.md](docs/vercel-deploy.md)。
+web 与 editor-host 部署到 Vercel（各为一个 Vercel 项目，Root Directory
+分别指向对应 app 目录）；converge-server 部署到 Cloudflare Workers
+（Durable Objects，零成本免费计划）。完整步骤与环境变量清单见
+[docs/deployment.md](docs/deployment.md)。
 
 Web 认证入口位于 `apps/@aether/web/lib/auth.ts`，Better-Auth 路由位于
 `apps/@aether/web/app/api/auth/[...all]/route.ts`；认证主体解析统一经
@@ -258,7 +259,7 @@ pnpm --filter @aether/auth backfill:realm-orgs -- --apply --owner-email owner@ex
 5. [数据模型](docs/roadmap/data-model.md)
 6. [里程碑](docs/roadmap/milestones.md)
 7. [风险与降级](docs/roadmap/risks.md)
-8. [Vercel 部署](docs/vercel-deploy.md)
+8. [部署指南](docs/deployment.md)
 
 ## 开发规范
 

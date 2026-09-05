@@ -1,6 +1,6 @@
 // @aether/converge-server · Hocuspocus 收敛服务独立进程入口
 // 本入口用于本地开发与自托管部署（长驻 Node 进程）。
-// Vercel 部署请使用 Vercel Function 入口（src/vercel.ts + api/ws.ts）。
+// 生产部署请使用 Cloudflare Workers 入口（cf/index.ts，Durable Objects）。
 //
 // 启动方式：
 //   pnpm --filter @aether/converge-server dev   (开发)
