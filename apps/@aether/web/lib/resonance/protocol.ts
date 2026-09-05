@@ -21,6 +21,7 @@ export type ApiErrorCode =
   | 'bad_request'
   | 'invalid_json'
   | 'invalid_status_transition'
+  | 'insufficient_scope'
   | 'service_unavailable'
   | 'internal_error'
 

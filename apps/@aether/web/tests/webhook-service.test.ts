@@ -70,6 +70,7 @@ const KEY = {
   keyId: 'key-1',
   keyName: 'CLI Key',
   creatorId: 'user-1',
+  kind: 'api-key' as const,
   realm: {
     id: REALM_ID,
     slug: 'alpha',

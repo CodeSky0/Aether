@@ -38,6 +38,10 @@ Aether 是协同智能的介质：承载人、Entity、代码与上下文共存�
 | [specs/m317-plan.md](./specs/m317-plan.md) | M3.17 实施计划 | 30 |
 | [specs/m318-internal-api-first.md](./specs/m318-internal-api-first.md) | M3.18 内部功能 API 化改造（API-First 兑现）规范 | 31 |
 | [specs/m318-plan.md](./specs/m318-plan.md) | M3.18 实施计划 | 32 |
+| [specs/m319-oauth-app-registry.md](./specs/m319-oauth-app-registry.md) | M3.19 OAuth App Registry 规范 | 33 |
+| [specs/m319-plan.md](./specs/m319-plan.md) | M3.19 实施计划 | 34 |
+| [specs/m320-realm-isolation-verification.md](./specs/m320-realm-isolation-verification.md) | M3.20 Realm Isolation 生产级验证规范 | 35 |
+| [specs/m320-plan.md](./specs/m320-plan.md) | M3.20 实施计划 | 36 |
 
 ## 阅读顺序
 

@@ -518,3 +518,87 @@ export const webhookDeliveries = pgTable(
     index('webhook_deliveries_realm_idx').on(t.realm_id),
   ],
 )
+// ---- oauth_apps（OAuth App Registry：第三方应用注册，Realm 绑定）----
+// App 归属 Realm（owner/admin 注册管理）；软删除后全部授权与 token 失效。
+export const oauthApps = pgTable(
+  'oauth_apps',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    // 公开客户端标识（oapp_<base64url>，生成于 @aether/resonance/oauth）
+    client_id: text('client_id').notNull(),
+    // 展示名（如 "CI 通知机器人"）
+    name: text('name').notNull(),
+    // sha256(client_secret) 十六进制；明文 osec_… 仅注册 / 轮换时返回一次
+    client_secret_hash: text('client_secret_hash').notNull(),
+    // 明文前 12 字符（osec_9f2K…），列表识别用
+    client_secret_prefix: text('client_secret_prefix').notNull(),
+    // 回调 URI 白名单（字符串数组，精确匹配；https 限定，loopback 例外）
+    redirect_uris: jsonb('redirect_uris').$type<string[]>().notNull(),
+    // 注册者 Better-Auth user id；审计归因
+    created_by: text('created_by').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // 软删除：非空即失效（授权与 token 一并失效）；查询过滤 deleted_at IS NULL
+    deleted_at: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('oauth_apps_client_id_uniq').on(t.client_id),
+    index('oauth_apps_realm_idx').on(t.realm_id),
+    index('oauth_apps_realm_alive_idx')
+      .on(t.realm_id)
+      .where(sql`${t.deleted_at} IS NULL`),
+  ],
+)
+// ---- oauth_authorizations（一次授权 = 一行：code 与 access token 同行）----
+// code 一次性（exchanged_at）+ 10 分钟过期；token 哈希入库（明文仅兑换时返回）。
+// 同一 (app, user, realm) 重新授权兑换时轮换：旧 token 自动吊销。
+export const oauthAuthorizations = pgTable(
+  'oauth_authorizations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    app_id: uuid('app_id')
+      .notNull()
+      .references(() => oauthApps.id),
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    // 授权用户 Better-Auth user id；token 权限 = 该用户的 Realm membership
+    user_id: text('user_id').notNull(),
+    // 授权 scope 数组（["read"] / ["read","write"]）
+    scopes: jsonb('scopes').$type<string[]>().notNull(),
+    // authorize 时实际使用的回调 URI（兑换时必须精确一致）
+    redirect_uri: text('redirect_uri').notNull(),
+    // ---- authorization code 侧（sha256 哈希，明文不落库）----
+    code_hash: text('code_hash').notNull(),
+    code_expires_at: timestamp('code_expires_at', { withTimezone: true })
+      .notNull(),
+    // PKCE S256（可选：authorize 带 challenge 则兑换必须带 verifier）
+    code_challenge: text('code_challenge'),
+    code_challenge_method: text('code_challenge_method'),
+    // 一次性标记：非空即已兑换，拒绝重放
+    exchanged_at: timestamp('exchanged_at', { withTimezone: true }),
+    // ---- access token 侧（兑换后填充；sha256 哈希，明文仅返回一次）----
+    token_hash: text('token_hash'),
+    token_prefix: text('token_prefix'),
+    token_issued_at: timestamp('token_issued_at', { withTimezone: true }),
+    last_used_at: timestamp('last_used_at', { withTimezone: true }),
+    // 吊销（用户撤销 / 轮换收敛）；非空即失效
+    revoked_at: timestamp('revoked_at', { withTimezone: true }),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('oauth_authorizations_token_hash_uniq').on(t.token_hash),
+    // Bearer token 解析：哈希唯一索引查找（同 API Key，杜绝时序侧信道）
+    index('oauth_authorizations_app_user_idx').on(t.app_id, t.user_id, t.revoked_at),
+    index('oauth_authorizations_user_idx').on(t.user_id, t.revoked_at),
+  ],
+)

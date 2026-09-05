@@ -1,9 +1,13 @@
 // @aether/web · /realms/[id]/settings/integrations：Resonance 集成设置
 // NavShell / PageHeader / TabNav 由 settings/layout.tsx 提供。
 // GitHub OAuth callback 重定向到此页并带 ?github=connected|disconnected 状态标记。
+// M3.19：OAuth Apps 卡片（owner/admin 管理 App；全体成员管理自己的授权）。
 import GithubIntegrationCard from '@/components/settings/github-integration-card'
+import OAuthAppsCard from '@/components/oauth-apps-card'
 import { listRealmIntegrations } from '@/lib/integrations'
 import { listRealmMembers } from '@/app/actions/membership'
+import { listMyOAuthAuthorizations, listOAuthApps } from '@/lib/oauth/actions'
+import { unwrapOr } from '@/lib/action-result'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +31,12 @@ export default async function IntegrationsSettingsPage({
     : null
   const canManage = currentActorRole === 'owner' || currentActorRole === 'admin'
 
+  // OAuth Apps：列表仅 owner/admin 可见；我的授权对全体成员开放（非成员回退空）
+  const [appsResult, authorizationsResult] = await Promise.all([
+    canManage ? listOAuthApps({ realmId }) : Promise.resolve(null),
+    listMyOAuthAuthorizations({ realmId }),
+  ])
+
   const githubIntegration =
     integrations.find((row) => row.provider === 'github') ?? null
 
@@ -48,6 +58,13 @@ export default async function IntegrationsSettingsPage({
       <GithubIntegrationCard
         realmId={realmId}
         integration={githubIntegration}
+        canManage={canManage}
+      />
+
+      <OAuthAppsCard
+        realmId={realmId}
+        apps={appsResult === null ? [] : unwrapOr(appsResult, [])}
+        authorizations={unwrapOr(authorizationsResult, [])}
         canManage={canManage}
       />
 

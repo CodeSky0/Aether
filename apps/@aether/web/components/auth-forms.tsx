@@ -9,6 +9,8 @@ import type { WebOidcProvider } from '@/lib/auth'
 
 interface AuthFormsProps {
   oidcProvider: WebOidcProvider | null
+  /** 登录后回跳目标（站内相对路径）；缺省回 /dashboard。 */
+  next?: string | null
 }
 
 type Mode = 'sign-in' | 'sign-up'
@@ -33,7 +35,7 @@ async function postAuthJson(path: string, body: unknown): Promise<void> {
   throw new Error(message)
 }
 
-export default function AuthForms({ oidcProvider }: AuthFormsProps) {
+export default function AuthForms({ oidcProvider, next }: AuthFormsProps) {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('sign-in')
   const [email, setEmail] = useState('')
@@ -52,7 +54,7 @@ export default function AuthForms({ oidcProvider }: AuthFormsProps) {
       } else {
         await postAuthJson('/api/auth/sign-up/email', { email, password, name })
       }
-      router.push('/dashboard')
+      router.push(next ?? '/dashboard')
       router.refresh()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '请求失败，请稍后再试')
@@ -70,7 +72,7 @@ export default function AuthForms({ oidcProvider }: AuthFormsProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           providerId: oidcProvider.providerId,
-          callbackURL: '/dashboard',
+          callbackURL: next ?? '/dashboard',
         }),
       })
       const payload = (await response.json()) as {

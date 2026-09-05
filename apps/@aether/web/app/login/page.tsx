@@ -6,9 +6,19 @@ import Link from 'next/link'
 import AuthForms from '@/components/auth-forms'
 import { getWebOidcProvider, tryGetAuth } from '@/lib/auth'
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>
+}) {
   const authConfigured = tryGetAuth() !== null
   const oidcProvider = authConfigured ? getWebOidcProvider() : null
+  // 回跳目标仅接受站内相对路径（防 open redirect），OAuth 授权页等场景使用
+  const rawNext = (await searchParams).next
+  const next =
+    typeof rawNext === 'string' && rawNext.startsWith('/') && !rawNext.startsWith('//')
+      ? rawNext
+      : null
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-1 px-6 py-16">
@@ -27,7 +37,7 @@ export default function LoginPage() {
       >
         <div className="rounded-xl bg-neutral-1 p-8 ring-1 ring-border">
           {authConfigured ? (
-            <AuthForms oidcProvider={oidcProvider} />
+            <AuthForms oidcProvider={oidcProvider} next={next} />
           ) : (
             <div className="rounded-md bg-error/10 p-4 text-label-12 text-error">
               <p>认证未配置：请设置 BETTER_AUTH_URL 与 BETTER_AUTH_SECRET 后重启。</p>

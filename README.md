@@ -109,8 +109,10 @@ SCIM 2.0 provisioning：配置 `AETHER_SCIM_TOKEN` 与 `AETHER_SCIM_REALM_ID`
 ## 公开 API（Resonance Gateway）
 
 第三方应用（CLI / CI / IDE 插件 / Entity 运行时）通过 `/api/v1` 公开 REST
-API 访问 Aether。鉴权使用 API Key：Realm 设置页（General tab → API Keys）
-由 owner / admin 生成，格式 `aeth_<base64url>`，明文仅生成时展示一次。
+API 访问 Aether。鉴权双通道：API Key（Realm 设置页 General tab → API Keys，
+owner / admin 生成，格式 `aeth_<base64url>`，明文仅生成时展示一次）或
+OAuth access token（见 [OAuth App Registry](#oauth-app-registry)，格式
+`aoat_<base64url>`）。
 
 ```bash
 curl -H "Authorization: Bearer aeth_xxx" \
@@ -177,6 +179,36 @@ const expected = 'sha256=' + crypto.createHmac('sha256', secret)
 由 Vercel Cron 每分钟触发 `/api/webhooks/dispatch`（Bearer
 `AETHER_WEBHOOK_DISPATCH_TOKEN` 鉴权，未配置即 503 fail-closed）。规范详见
 [docs/specs/m317-webhook-constellation.md](docs/specs/m317-webhook-constellation.md)。
+
+### OAuth App Registry（第三方应用授权）
+
+第三方应用可注册为 OAuth 客户端，经标准授权码流程（+ PKCE S256）代表用户
+访问 `/api/v1`。owner / admin 在 Realm 设置页（Integrations tab → OAuth
+Apps）注册应用（`client_id` = `oapp_…`，`client_secret` 明文仅注册 / 轮换时
+展示一次）并登记 https 回调 URI（loopback http 例外，精确匹配）。
+
+```
+GET  /oauth/authorize   授权入口（同意页；校验失败渲染错误页，不重定向）
+POST /api/oauth/token   code 兑换（机密客户端；grant_type=authorization_code）
+```
+
+```bash
+# 1. 引导用户访问同意页
+https://<host>/oauth/authorize?client_id=oapp_xxx&redirect_uri=https://ci.example.com/callback&response_type=code&scope=read+write&state=xyz&realm_id=<uuid>&code_challenge=<S256>&code_challenge_method=S256
+# 2. 用户批准后回调 ?code=…&state=xyz，应用以 code 换 token
+curl -X POST https://<host>/api/oauth/token -H 'content-type: application/json' \
+  -d '{"grant_type":"authorization_code","client_id":"oapp_xxx","client_secret":"osec_xxx","code":"oac_xxx","redirect_uri":"https://ci.example.com/callback","code_verifier":"<verifier>"}'
+# 3. 携带 aoat_ 令牌访问 /api/v1
+curl -H "Authorization: Bearer aoat_xxx" https://<host>/api/v1/realms/<realmId>/threads
+```
+
+安全模型：authorization code 一次性、10 分钟过期、sha256 哈希入库；token
+同样仅存哈希，同 `(app, user, realm)` 重新授权自动轮换吊销旧 token；scope
+（`read` / `write`，缺省 `read`）按 HTTP method 强制，写操作缺 `write` 即
+403 `insufficient_scope`；token 随授权用户失去 Realm active membership、
+App 软删除或用户吊销而 fail-closed 失效。成员可在 Integrations 页自助吊销
+自己的授权。规范详见
+[docs/specs/m319-oauth-app-registry.md](docs/specs/m319-oauth-app-registry.md)。
 
 Realm membership 邀请与 JIT 镜像位于 `apps/@aether/web/app/actions/membership.ts`，
 Better-Auth organization 操作统一经 `@aether/auth` 封装。

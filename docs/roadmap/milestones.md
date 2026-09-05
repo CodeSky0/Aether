@@ -114,7 +114,10 @@ graph LR
   - M3.18 已落地业务核心层 `lib/resonance/core.ts`（与主体无关、与传输无关）：project 归属校验、Thread 状态机、dialogue_ref 竞争回写、同事务审计与事务性 outbox 在此唯一实现。三通道全部消费：公开 API（`/api/v1` 薄委托，行为不变）、会话 Server Actions（createThread 补齐审计缺口，归因当前用户）、GitHub 集成（issue/comment/PR 五路径获得状态机 + 审计 + Webhook 事件；人工归档的 Thread 不被 GitHub 状态强制迁移）。审计幂等键前缀改为通道 source（`api-key:` / `session:` / `github:`）。规范见 [specs/m318-internal-api-first.md](../specs/m318-internal-api-first.md)。
 - [x] Webhook Constellation：订阅、签名、重试
   - M3.17 已落地出站事件订阅（`webhook_subscriptions` / `webhook_deliveries` 事务性 outbox）、HMAC-SHA256 签名协议（`x-aether-signature-256`，明文 secret 仅创建时返回一次、AES-GCM 加密入库）、指数退避重试（30s 基准 × 2ⁿ 封顶 1h，8 次后 exhausted）与 Cron 扫描投递（`/api/webhooks/dispatch`，Bearer token fail-closed 鉴权）。v1 事件目录：`thread.created` / `thread.status_changed` / `dialogue.message_created`。规范见 [specs/m317-webhook-constellation.md](../specs/m317-webhook-constellation.md)。
-- [ ] OAuth App Registry
+- [x] OAuth App Registry
+  - M3.19 已落地 OAuth 2.0 授权码流程（+ PKCE S256）：App 注册 / secret 轮换 / 软删除（`oauth_apps`，owner/admin）、同意页授权与 token 兑换（`/oauth/authorize` + `/api/oauth/token`，code 一次性 10 分钟、sha256 哈希入库、同 (app, user, realm) 轮换吊销）、`aoat_` 令牌双通道鉴权（`read`/`write` scope 按 method 强制，403 `insufficient_scope`）、成员自助授权吊销（Realm 设置 → Integrations）。管理 UI 与全部凭据明文仅一次性展示策略与 API Key 一致。规范见 [specs/m319-oauth-app-registry.md](../specs/m319-oauth-app-registry.md)。
+- [x] Realm Isolation 生产级验证
+  - M3.20 已落地跨 Realm 隔离测试套件（`tests/realm-isolation.test.ts`，16 用例）：覆盖三层守卫——令牌绑定单一 Realm、`requireRealmMatch` 路径守卫（`/realms/B/*` → 404 不触 db）、`requireThreadRow` 资源守卫（`/threads/<B-thread>` GET/PATCH/dialogues → 404）、列表隔离（A 令牌仅收 A 行）、写隔离（A 令牌引用 B 的 project_id → 400 invalid_project）、同 Realm 正向回归。验证 M3.16–M3.19 全链路多租户边界不可突破。规范见 [specs/m320-realm-isolation-verification.md](../specs/m320-realm-isolation-verification.md)。
 - [ ] Resonance Marketplace 内测
 - [ ] Self-host Beacon：Dockerfile 与部署基线
 - [ ] 性能优化：PPR / Edge / 冷启动

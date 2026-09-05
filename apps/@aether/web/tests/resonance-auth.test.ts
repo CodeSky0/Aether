@@ -1,4 +1,4 @@
-// Resonance Gateway 鉴权层测试（lib/resonance/auth.ts）
+﻿// Resonance Gateway 鉴权层测试（lib/resonance/auth.ts）
 // 覆盖：Bearer 解析、sha256 哈希查找、fail-closed 三重校验、last_used_at 维护。
 import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,12 +13,20 @@ vi.mock('@/lib/logger', () => ({
 
 import { getDb } from '@/lib/db'
 import {
+  authorizeRequest,
   parseBearerKey,
   resolveApiKey,
   touchLastUsed,
+  type AuthorizedContext,
 } from '@/lib/resonance/auth'
 
 const mockedGetDb = vi.mocked(getDb)
+
+// M3.19 双通道：OAuth token 解析下沉 lib/oauth/service，此处 mock 其返回
+const mockResolveOAuthToken = vi.fn<(...args: unknown[]) => unknown>()
+vi.mock('@/lib/oauth/service', () => ({
+  resolveOAuthToken: (...args: unknown[]) => mockResolveOAuthToken(...args),
+}))
 
 const REALM_ID = '01234567-89ab-cdef-0123-456789abcdef'
 const TOKEN = `aeth_${'k'.repeat(40)}`
@@ -116,11 +124,17 @@ describe('parseBearerKey', () => {
     expect(parseBearerKey('Basic abc')).toBeNull()
     expect(parseBearerKey('Bearer not-aether-key')).toBeNull()
     expect(parseBearerKey('Bearer aeth_')).toBeNull()
+    expect(parseBearerKey('Bearer aoat_')).toBeNull()
   })
 
   it('合法 aeth 密钥原样返回', () => {
     expect(parseBearerKey(`Bearer ${TOKEN}`)).toBe(TOKEN)
     expect(parseBearerKey(`bearer ${TOKEN}`)).toBe(TOKEN)
+  })
+
+  it('合法 aoat OAuth token 原样返回（双通道）', () => {
+    const oauthToken = `aoat_${'t'.repeat(40)}`
+    expect(parseBearerKey(`Bearer ${oauthToken}`)).toBe(oauthToken)
   })
 })
 
@@ -146,6 +160,7 @@ describe('resolveApiKey', () => {
         created_at: keyRow.realmCreatedAt,
         updated_at: keyRow.realmUpdatedAt,
       },
+      kind: 'api-key',
     })
   })
 
@@ -163,9 +178,29 @@ describe('resolveApiKey', () => {
 })
 
 describe('touchLastUsed', () => {
+  const apiKeyContext = {
+    keyId: 'key-1',
+    keyName: 'CLI',
+    creatorId: 'user-1',
+    realm: {
+      id: REALM_ID,
+      slug: 'alpha',
+      name: 'Alpha',
+      created_at: new Date('2026-08-01T00:00:00.000Z'),
+      updated_at: new Date('2026-08-01T00:00:00.000Z'),
+    },
+    kind: 'api-key' as const,
+  }
+
   it('按密钥 id 更新 last_used_at', async () => {
     const db = mockAuthDb({})
-    await touchLastUsed('key-1')
+    await touchLastUsed(apiKeyContext)
+    expect(db.update).toHaveBeenCalled()
+  })
+
+  it('OAuth 通道按 authorization id 更新 oauth_authorizations', async () => {
+    const db = mockAuthDb({})
+    await touchLastUsed({ ...apiKeyContext, kind: 'oauth-token', keyId: 'authz-1' })
     expect(db.update).toHaveBeenCalled()
   })
 
@@ -180,6 +215,77 @@ describe('touchLastUsed', () => {
       })),
     }
     mockedGetDb.mockReturnValue(db as never)
-    await expect(touchLastUsed('key-1')).resolves.toBeUndefined()
+    await expect(touchLastUsed(apiKeyContext)).resolves.toBeUndefined()
+  })
+})
+
+describe('authorizeRequest · OAuth scope 强制（M3.19）', () => {
+  const oauthToken = `aoat_${'t'.repeat(40)}`
+  const resolvedOAuth = {
+    authorizationId: 'authz-1',
+    appId: 'app-1',
+    appName: 'CI Bot',
+    clientId: 'oapp_ci',
+    userId: 'user-1',
+    scopes: ['read'],
+    realm: {
+      id: REALM_ID,
+      slug: 'alpha',
+      name: 'Alpha',
+      created_at: new Date('2026-08-01T00:00:00.000Z'),
+      updated_at: new Date('2026-08-01T00:00:00.000Z'),
+    },
+  }
+
+  function requestWith(method: string, token: string): Request {
+    return new Request('https://api.example.com/api/v1/threads', {
+      method,
+      headers: { authorization: `Bearer ${token}` },
+    })
+  }
+
+  it('read scope 的 GET 请求放行并携带 OAuth 上下文', async () => {
+    mockResolveOAuthToken.mockResolvedValue(resolvedOAuth)
+    mockAuthDb({})
+    const result = await authorizeRequest(requestWith('GET', oauthToken))
+    expect(result).not.toBeInstanceOf(Response)
+    const context = result as AuthorizedContext
+    expect(context.key.kind).toBe('oauth-token')
+    expect(context.key.clientId).toBe('oapp_ci')
+    expect(context.key.scopes).toEqual(['read'])
+  })
+
+  it('read scope 的 POST 请求 → 403 insufficient_scope', async () => {
+    mockResolveOAuthToken.mockResolvedValue(resolvedOAuth)
+    const result = await authorizeRequest(requestWith('POST', oauthToken))
+    expect(result).toBeInstanceOf(Response)
+    const response = result as Response
+    expect(response.status).toBe(403)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('insufficient_scope')
+  })
+
+  it('read write scope 的 POST 请求放行', async () => {
+    mockResolveOAuthToken.mockResolvedValue({
+      ...resolvedOAuth,
+      scopes: ['read', 'write'],
+    })
+    mockAuthDb({})
+    const result = await authorizeRequest(requestWith('POST', oauthToken))
+    expect(result).not.toBeInstanceOf(Response)
+  })
+
+  it('OAuth token 解析失败 → 401', async () => {
+    mockResolveOAuthToken.mockResolvedValue(null)
+    const result = await authorizeRequest(requestWith('GET', oauthToken))
+    expect(result).toBeInstanceOf(Response)
+    expect((result as Response).status).toBe(401)
+  })
+
+  it('API Key 通道不做 scope 检查（POST 放行）', async () => {
+    mockAuthDb({})
+    const result = await authorizeRequest(requestWith('POST', TOKEN))
+    expect(result).not.toBeInstanceOf(Response)
+    expect((result as AuthorizedContext).key.kind).toBe('api-key')
   })
 })

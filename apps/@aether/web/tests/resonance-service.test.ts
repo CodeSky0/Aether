@@ -75,6 +75,7 @@ const KEY = {
   keyId: 'key-1',
   keyName: 'CLI Key',
   creatorId: 'user-1',
+  kind: 'api-key' as const,
   realm: {
     id: REALM_ID,
     slug: 'alpha',
@@ -204,7 +205,7 @@ beforeEach(() => {
       request.headers.get('authorization'),
     )
     if (key === null) return unauthorized()
-    await mockedTouchLastUsed(key.keyId)
+    await mockedTouchLastUsed(key)
     return { key }
   })
   mockedEnqueueWebhookDeliveries.mockResolvedValue()
