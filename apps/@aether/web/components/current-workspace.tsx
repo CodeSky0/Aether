@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation'
 
 import NavShell from '@/components/nav-shell'
 import ThreadDialogue from '@/components/thread-dialogue'
+import ManifestationPanel from '@/components/manifestation-panel'
 import type { RealmActorRow } from '@/lib/entities'
 import type { AuditRow } from '@/lib/audit'
 import { createThread, type ThreadRow } from '@/lib/threads'
@@ -92,10 +93,15 @@ export default function CurrentWorkspace({
   const [selection, setSelection] = useState<SelectionInfo | null>(null)
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [activeThreadTitle, setActiveThreadTitle] = useState<string>('')
+  const [showManifestation, setShowManifestation] = useState(false)
   const router = useRouter()
 
   // Entity 信息（对话视图用）
   const activeEntity = actors.find((a) => a.kind === 'entity') ?? null
+  // activeThread 的 manifestation_url（预览面板用）
+  const activeThreadManifestationUrl = activeThreadId
+    ? threads.find((t) => t.id === activeThreadId)?.manifestation_url
+    : undefined
 
   // 构建编辑器 iframe URL，包含必要的上下文参数
   const editorUrl = useMemo(() => {
@@ -191,13 +197,24 @@ export default function CurrentWorkspace({
       {/* 底：Threads / 对话视图 */}
       <section className="flex h-72 shrink-0 flex-col border-t border-border bg-neutral-1">
         {activeThreadId ? (
-          <ThreadDialogue
-            threadId={activeThreadId}
-            realmId={realmId}
-            threadTitle={activeThreadTitle}
-            {...(activeEntity ? { entityId: activeEntity.id, entityName: activeEntity.name, entityStatus: activeEntity.status } : {})}
-            onClose={() => { setActiveThreadId(null); router.refresh() }}
-          />
+          showManifestation && activeThreadManifestationUrl ? (
+            <ManifestationPanel
+              manifestationUrl={activeThreadManifestationUrl}
+              realmId={realmId}
+              defaultProjectId={defaultProjectId}
+              threadTitle={activeThreadTitle}
+              onClose={() => setShowManifestation(false)}
+            />
+          ) : (
+            <ThreadDialogue
+              threadId={activeThreadId}
+              realmId={realmId}
+              threadTitle={activeThreadTitle}
+              {...(activeEntity ? { entityId: activeEntity.id, entityName: activeEntity.name, entityStatus: activeEntity.status } : {})}
+              {...(activeThreadManifestationUrl ? { manifestationUrl: activeThreadManifestationUrl, onShowManifestation: () => setShowManifestation(true) } : {})}
+              onClose={() => { setActiveThreadId(null); setShowManifestation(false); router.refresh() }}
+            />
+          )
         ) : (
           <ThreadPanel
             realmId={realmId}

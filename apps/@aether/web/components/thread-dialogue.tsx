@@ -19,6 +19,9 @@ interface ThreadDialogueProps {
   /** Entity 显示名（用于头像）；缺省用 "Entity" */
   entityName?: string
   entityStatus?: string
+  /** Thread 绑定的 Manifestation URL；存在时显示「查看预览」按钮 */
+  manifestationUrl?: string
+  onShowManifestation?: () => void
   onClose?: () => void
 }
 
@@ -38,6 +41,8 @@ export default function ThreadDialogue({
   entityId,
   entityName = 'Entity',
   entityStatus = 'idle',
+  manifestationUrl,
+  onShowManifestation,
   onClose,
 }: ThreadDialogueProps) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -160,6 +165,15 @@ export default function ThreadDialogue({
         <span className="ml-auto shrink-0 font-mono text-caption-10 uppercase tracking-wider text-neutral-5">
           Thread
         </span>
+        {manifestationUrl && onShowManifestation && (
+          <button
+            type="button"
+            onClick={onShowManifestation}
+            className="shrink-0 rounded-md bg-neutral-2 px-2.5 py-1 text-label-12 text-neutral-7 transition hover:text-neutral-9"
+          >
+            查看预览
+          </button>
+        )}
         {onClose && (
           <button
             type="button"
