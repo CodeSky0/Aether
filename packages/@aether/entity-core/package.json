@@ -52,6 +52,10 @@
     "@aether/current-sync": "workspace:*",
     "@aether/db": "workspace:*",
     "@aether/types": "workspace:*",
+    "@ai-sdk/anthropic": "^4.0.49",
+    "@ai-sdk/openai": "^4.0.59",
+    "@ai-sdk/xai": "^4.0.54",
+    "ai": "^7.0.93",
     "drizzle-orm": "^0.45.2",
     "yjs": "13.6.27"
   },

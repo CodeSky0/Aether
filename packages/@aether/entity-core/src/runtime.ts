@@ -37,6 +37,15 @@ export interface EntityLanguageModel {
     system?: string
     maxSteps?: number
   }): Promise<EntityTextResult>
+  /** 流式生成；真实 provider 适配器实现，mock 可省略（streamChat 回退模拟）。 */
+  streamText?(options: {
+    model: unknown
+    prompt?: string
+    messages?: EntityChatMessage[]
+    tools?: Record<string, EntityToolDefinition>
+    system?: string
+    maxSteps?: number
+  }): Promise<EntityStreamResult>
 }
 
 export interface EntityTextResult {
@@ -46,6 +55,20 @@ export interface EntityTextResult {
     args: Record<string, unknown>
   }> | undefined
   responseMessages?: unknown[] | undefined
+}
+
+export interface EntityStreamResult {
+  /** 逐 token 异步迭代；消费完成后 text Promise resolve。 */
+  textStream: AsyncIterable<string>
+  /** 完整文本（流消费完成后 resolve）。 */
+  text: PromiseLike<string>
+  /** 工具调用（流 + 工具循环完成后 resolve）。 */
+  toolCalls?: PromiseLike<
+    Array<{
+      toolName: string
+      args: Record<string, unknown>
+    }> | undefined
+  >
 }
 
 export interface EntityChatMessage {
@@ -279,7 +302,8 @@ export class EntityRuntime {
 
   /**
    * 流式对话：逐条 token 回调。
-   * 工具调用在流式完成后统一处理。
+   * 真实 provider（model.streamText 存在）→ 逐 token 流式 + 审计落库；
+   * mock model（无 streamText）→ 回退 chat + 逐字符模拟，保持测试兼容。
    */
   async streamChat(
     db: AuditDb,
@@ -292,8 +316,79 @@ export class EntityRuntime {
       throw new Error(`Entity ${this.entity.id} is not active.`)
     }
 
+    // 真实流式路径
+    if (this.model.streamText) {
+      const allMessages: EntityChatMessage[] = [
+        { role: 'system', content: this.systemPrompt },
+        ...this.conversationHistory,
+        ...messages,
+      ]
+      const boundTools = this.filterToolsByManifesto(tools)
+
+      const stream = await this.model.streamText({
+        model: this.model,
+        messages: allMessages,
+        tools: boundTools,
+        maxSteps: 1,
+      })
+
+      let reply = ''
+      if (options.onToken) {
+        for await (const token of stream.textStream) {
+          reply += token
+          options.onToken(token)
+        }
+      } else {
+        reply = await stream.text
+      }
+
+      const streamedToolCalls = stream.toolCalls
+        ? await stream.toolCalls
+        : undefined
+
+      // 审计：AI 回复落 entity 行为轨迹
+      const auditIds: string[] = []
+      const auditRecord = await recordEntityAction(db, realmId, this.entity.id, {
+        action: 'converse',
+        target: { type: 'chat_response', mode: 'stream' },
+        payload: reply,
+        idempotencyKey: `stream-${Date.now()}`,
+        result: { textLength: reply.length },
+      })
+      auditIds.push(auditRecord.id)
+
+      // 工具调用审计
+      const toolCalls: EntityChatResult['toolCalls'] = []
+      if (streamedToolCalls) {
+        for (const tc of streamedToolCalls) {
+          const toolAudit = await recordEntityAction(db, realmId, this.entity.id, {
+            action: 'execute',
+            target: { type: 'tool_call', tool: tc.toolName },
+            payload: tc.args,
+            idempotencyKey: `stream-tool-${Date.now()}-${tc.toolName}`,
+            result: { streamed: true },
+          })
+          auditIds.push(toolAudit.id)
+          toolCalls.push({
+            toolName: tc.toolName,
+            args: tc.args,
+            result: undefined,
+            handoffRequired: false,
+            handoffApproved: false,
+          })
+        }
+      }
+
+      this.conversationHistory = [
+        ...allMessages.slice(1),
+        { role: 'assistant' as const, content: reply },
+      ].slice(-20)
+
+      return { reply, toolCalls, auditIds }
+    }
+
+    // 回退：mock model 逐字符模拟（现有行为，测试兼容）
     const result = await this.chat(db, realmId, messages, tools)
-    // Simulate token streaming for UI compatibility
     if (options.onToken) {
       for (const char of result.reply) {
         options.onToken(char)

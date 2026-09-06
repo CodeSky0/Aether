@@ -66,7 +66,15 @@ export {
   type EntityChatResult,
   type EntityLanguageModel,
   type EntityStreamOptions,
+  type EntityStreamResult,
   type EntityTextResult,
   type EntityToolDefinition,
   type EntityRuntimeOptions,
 } from './runtime.js'
+export {
+  createEntityLanguageModel,
+  loadProviderModel,
+  resolveProviderConfig,
+  type EntityProvider,
+  type ProviderConfig,
+} from './provider.js'

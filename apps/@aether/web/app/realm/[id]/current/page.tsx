@@ -4,7 +4,6 @@
 import { notFound } from 'next/navigation'
 
 import CurrentWorkspace from '@/components/current-workspace'
-import NavShell from '@/components/nav-shell'
 import { resolveCurrentActor } from '@/lib/auth-guard'
 import { unwrap, unwrapOr } from '@/lib/action-result'
 import { listAuditLogs } from '@/lib/audit'
@@ -40,18 +39,15 @@ export default async function CurrentPage({ params }: PageProps) {
   const defaultProjectId = unwrap(defaultProjectResult)
 
   return (
-    <NavShell currentRealmName={realm.name} currentRealmId={realm.id}>
-      <CurrentWorkspace
-        realmId={realm.id}
-        realmName={realm.name}
-        threads={threads}
-        actors={actors}
-        entityAuditRows={entityAuditRows}
-        defaultProjectId={defaultProjectId}
-        // 传递当前用户信息，用于构建编辑器 iframe URL
-        currentActorId={currentActor?.actorId ?? 'anonymous'}
-        currentActorName={actors.find(a => a.id === currentActor?.actorId)?.name ?? 'Guest'}
-      />
-    </NavShell>
+    <CurrentWorkspace
+      realmId={realm.id}
+      realmName={realm.name}
+      threads={threads}
+      actors={actors}
+      entityAuditRows={entityAuditRows}
+      defaultProjectId={defaultProjectId}
+      currentActorId={currentActor?.actorId ?? 'anonymous'}
+      currentActorName={actors.find(a => a.id === currentActor?.actorId)?.name ?? 'Guest'}
+    />
   )
 }

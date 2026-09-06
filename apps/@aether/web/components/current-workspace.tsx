@@ -10,6 +10,8 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 
+import NavShell from '@/components/nav-shell'
+import ThreadDialogue from '@/components/thread-dialogue'
 import type { RealmActorRow } from '@/lib/entities'
 import type { AuditRow } from '@/lib/audit'
 import { createThread, type ThreadRow } from '@/lib/threads'
@@ -88,6 +90,12 @@ export default function CurrentWorkspace({
 }: CurrentWorkspaceProps) {
   const [activePath, setActivePath] = useState<string>(WORKSPACE_FILES[0].path)
   const [selection, setSelection] = useState<SelectionInfo | null>(null)
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
+  const [activeThreadTitle, setActiveThreadTitle] = useState<string>('')
+  const router = useRouter()
+
+  // Entity 信息（对话视图用）
+  const activeEntity = actors.find((a) => a.kind === 'entity') ?? null
 
   // 构建编辑器 iframe URL，包含必要的上下文参数
   const editorUrl = useMemo(() => {
@@ -104,6 +112,7 @@ export default function CurrentWorkspace({
   }, [realmId, activePath, currentActorId, currentActorName])
 
   return (
+    <NavShell currentRealmName={realmName} currentRealmId={realmId} selection={selection} defaultProjectId={defaultProjectId} onThreadCreated={() => { router.refresh() }}>
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-0 flex-1">
         {/* 左：Files */}
@@ -143,7 +152,10 @@ export default function CurrentWorkspace({
             <span className="truncate font-mono text-label-12 text-neutral-7">
               {activePath}
             </span>
-            <span className="ml-auto shrink-0 font-mono text-caption-10 uppercase tracking-wider text-neutral-6">
+            <span className="ml-auto shrink-0 font-mono text-caption-10 text-neutral-6">
+              {actors.filter(a => a.kind === 'human').length} Humans · {actors.filter(a => a.kind === 'entity').length} Entities in Current
+            </span>
+            <span className="shrink-0 font-mono text-caption-10 uppercase tracking-wider text-neutral-5">
               {realmName}
             </span>
           </header>
@@ -176,16 +188,28 @@ export default function CurrentWorkspace({
         </aside>
       </div>
 
-      {/* 底：Threads */}
-      <section className="flex h-56 shrink-0 flex-col border-t border-border bg-neutral-1">
-        <ThreadPanel
-          realmId={realmId}
-          defaultProjectId={defaultProjectId}
-          threads={threads}
-          selection={selection}
-        />
+      {/* 底：Threads / 对话视图 */}
+      <section className="flex h-72 shrink-0 flex-col border-t border-border bg-neutral-1">
+        {activeThreadId ? (
+          <ThreadDialogue
+            threadId={activeThreadId}
+            realmId={realmId}
+            threadTitle={activeThreadTitle}
+            {...(activeEntity ? { entityId: activeEntity.id, entityName: activeEntity.name, entityStatus: activeEntity.status } : {})}
+            onClose={() => { setActiveThreadId(null); router.refresh() }}
+          />
+        ) : (
+          <ThreadPanel
+            realmId={realmId}
+            defaultProjectId={defaultProjectId}
+            threads={threads}
+            selection={selection}
+            onOpenThread={(id, title) => { setActiveThreadId(id); setActiveThreadTitle(title) }}
+          />
+        )}
       </section>
     </div>
+    </NavShell>
   )
 }
 
@@ -396,11 +420,13 @@ function ThreadPanel({
   defaultProjectId,
   threads,
   selection,
+  onOpenThread,
 }: {
   realmId: string
   defaultProjectId: string
   threads: ThreadRow[]
   selection: SelectionInfo | null
+  onOpenThread?: (id: string, title: string) => void
 }) {
   const router = useRouter()
   const [title, setTitle] = useState('')
@@ -481,7 +507,8 @@ function ThreadPanel({
               {threads.map((t) => (
                 <li
                   key={t.id}
-                  className="flex min-w-0 items-baseline gap-3 rounded-md px-2 py-1.5 hover:bg-neutral-2"
+                  className={`flex min-w-0 items-baseline gap-3 rounded-md px-2 py-1.5 ${onOpenThread ? 'cursor-pointer hover:bg-neutral-2' : 'hover:bg-neutral-2'}`}
+                  {...(onOpenThread ? { onClick: () => onOpenThread(t.id, t.title) } : {})}
                 >
                   <span className="min-w-0 truncate text-copy-13 text-neutral-9">
                     {t.title}

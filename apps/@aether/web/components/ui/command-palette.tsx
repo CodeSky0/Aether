@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
+import { createThread } from '@/lib/threads'
 
 interface CommandItem {
   /** 动作名（font-sans，参与过滤匹配） */
@@ -23,18 +24,32 @@ interface CommandPaletteProps {
   /** 当前 Realm 上下文：提供则追加 Realm 内导航命令 */
   currentRealmId?: string | null
   currentRealmName?: string | null
+  /** 编辑器选区：非空时 Cmd+K 进入"向 Entity 提问"模式（context-bound Thread 创建） */
+  selection?: { text: string; start: number; end: number } | null
+  /** 创建 Thread 所需的默认 project（提问模式用） */
+  defaultProjectId?: string | null
+  /** Thread 创建后回调（打开对话面板） */
+  onThreadCreated?: (threadId: string, title: string) => void
 }
 
 export default function CommandPalette({
   currentRealmId = null,
   currentRealmName = null,
+  selection = null,
+  defaultProjectId = null,
+  onThreadCreated,
 }: CommandPaletteProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
+  const [askError, setAskError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
+
+  /** 提问模式：选区非空且配置了 Realm + project 时启用 */
+  const askMode = selection !== null && selection.text.length > 0 && currentRealmId !== null && defaultProjectId !== null
 
   const commands = useMemo<CommandItem[]>(() => {
     const base: CommandItem[] = [
@@ -107,6 +122,112 @@ export default function CommandPalette({
 
   const close = () => setOpen(false)
 
+  // ---- 提问模式（context-bound Thread 创建）----
+  if (askMode) {
+    const handleAskSubmit = async () => {
+      if (!query.trim() || !currentRealmId || !defaultProjectId || !selection) return
+      setSubmitting(true)
+      setAskError(null)
+      try {
+        const result = await createThread({
+          realmId: currentRealmId,
+          projectId: defaultProjectId,
+          title: query.trim().slice(0, 80),
+          codeAnchor: selection.text,
+        })
+        if (!result.success) {
+          setAskError(result.error)
+          return
+        }
+        onThreadCreated?.(result.data.id, result.data.title)
+        close()
+      } catch (err) {
+        setAskError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setSubmitting(false)
+      }
+    }
+
+    const handleAskKeyDown = (event: React.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        close()
+        return
+      }
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        void handleAskSubmit()
+      }
+    }
+
+    const preview = selection.text.slice(0, 120)
+
+    return createPortal(
+      <div
+        className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
+        style={{ animation: 'yohaku-modal-backdrop-in 0.16s ease-out both' }}
+        onKeyDown={handleAskKeyDown}
+      >
+        <div
+          className="absolute inset-0 bg-neutral-10/50 backdrop-blur-sm"
+          aria-hidden="true"
+          onClick={close}
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="向 Entity 提问"
+          className="relative w-full max-w-md overflow-hidden rounded-xl bg-neutral-1 shadow-whisper ring-1 ring-border"
+          style={{ animation: 'yohaku-modal-in 0.2s ease-out both' }}
+        >
+          <div className="border-b border-border p-3">
+            <p className="px-1 pb-2 font-serif text-copy-14 font-medium text-neutral-9">
+              向 Entity 提问
+            </p>
+            <div className="rounded-lg bg-neutral-1 px-3 py-2 ring-1 ring-border transition focus-within:ring-accent">
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="针对选中的代码提问…"
+                aria-label="提问内容"
+                disabled={submitting}
+                className="w-full bg-transparent text-copy-15 text-neutral-10 outline-none placeholder:text-neutral-4"
+              />
+            </div>
+          </div>
+          <div className="px-4 py-3">
+            <p className="mb-1 text-caption-10 uppercase tracking-[1.5px] text-neutral-5">
+              已锚定代码选区 · {selection.text.length} 字符
+            </p>
+            <pre className="max-h-32 overflow-y-auto rounded-md bg-accent/10 px-3 py-2 font-mono text-label-12 text-accent whitespace-pre-wrap">
+              {preview}
+              {selection.text.length > 120 ? '…' : ''}
+            </pre>
+            {askError && (
+              <p className="mt-2 text-label-12 text-error">{askError}</p>
+            )}
+          </div>
+          <div className="flex items-center justify-between border-t border-border px-4 py-2">
+            <span className="text-label-12 text-neutral-5">
+              <Kbd>Enter</Kbd> 发起 Thread · <Kbd>Esc</Kbd> 关闭
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleAskSubmit()}
+              disabled={submitting || !query.trim()}
+              className="btn-primary text-label-12"
+            >
+              {submitting ? '创建中…' : '发起 Thread'}
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    )
+  }
+
+  // ---- 导航模式（现有行为）----
   const execute = (command: CommandItem) => {
     close()
     router.push(command.href)

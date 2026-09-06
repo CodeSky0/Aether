@@ -26,6 +26,12 @@ interface NavShellProps {
   children: ReactNode
   currentRealmName?: string | null
   currentRealmId?: string | null
+  /** 编辑器选区：透传给 CommandPalette 的 context-bound 提问模式 */
+  selection?: { text: string; start: number; end: number } | null
+  /** 提问模式创建 Thread 的默认 project */
+  defaultProjectId?: string | null
+  /** Thread 创建后回调 */
+  onThreadCreated?: (threadId: string, title: string) => void
 }
 
 /** 折叠态持久化 key */
@@ -41,7 +47,7 @@ function isAppRoute(pathname: string): boolean {
   )
 }
 
-export default function NavShell({ children, currentRealmName, currentRealmId }: NavShellProps) {
+export default function NavShell({ children, currentRealmName, currentRealmId, selection = null, defaultProjectId = null, onThreadCreated }: NavShellProps) {
   const pathname = usePathname()
   const [realmName, setRealmName] = useState<string | null>(currentRealmName ?? null)
   const [collapsed, setCollapsed] = useState(false)
@@ -68,7 +74,7 @@ export default function NavShell({ children, currentRealmName, currentRealmId }:
 
   return (
     <div className="flex h-screen flex-col">
-      <CommandPalette currentRealmId={currentRealmId ?? null} currentRealmName={realmName} />
+      <CommandPalette currentRealmId={currentRealmId ?? null} currentRealmName={realmName} selection={selection} defaultProjectId={defaultProjectId} {...(onThreadCreated ? { onThreadCreated } : {})} />
       <header className="flex h-14 shrink-0 items-center border-b border-border bg-paper px-4 md:px-6">
         <Link
           href="/"
