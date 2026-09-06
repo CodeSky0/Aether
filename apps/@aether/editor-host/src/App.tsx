@@ -50,6 +50,16 @@ export default function App() {
     }
   }, [editor.host.provider])
 
+  // 向父窗口（web 端 iframe 宿主）传递连接状态，供 DriftStatusBar 消费
+  useEffect(() => {
+    if (window.parent !== window) {
+      window.parent.postMessage(
+        { type: 'aether:editor-connection', state: connectionState },
+        '*',
+      )
+    }
+  }, [connectionState])
+
   const connectionStatusText = useMemo(() => {
     switch (connectionState) {
       case 'connected':

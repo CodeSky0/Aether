@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation'
 import NavShell from '@/components/nav-shell'
 import ThreadDialogue from '@/components/thread-dialogue'
 import ManifestationPanel from '@/components/manifestation-panel'
+import DriftStatusBar from '@/components/drift-status-bar'
 import type { RealmActorRow } from '@/lib/entities'
 import type { AuditRow } from '@/lib/audit'
 import { createThread, type ThreadRow } from '@/lib/threads'
@@ -120,6 +121,7 @@ export default function CurrentWorkspace({
   return (
     <NavShell currentRealmName={realmName} currentRealmId={realmId} selection={selection} defaultProjectId={defaultProjectId} onThreadCreated={() => { router.refresh() }}>
     <div className="flex h-full min-h-0 flex-col">
+      <DriftStatusBar />
       <div className="flex min-h-0 flex-1">
         {/* 左：Files */}
         <aside className="flex w-44 shrink-0 flex-col border-r border-border bg-neutral-1 md:w-56">
