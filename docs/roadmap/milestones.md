@@ -130,6 +130,54 @@ graph LR
 - 审计报告覆盖人机双方，可导出。
 - P95 交互延迟达到公测指标。
 
+## 愿景对齐 Wave A–C
+
+对照愿景文档识别 M0–M3 已落地但未通电的能力差距，以 Wave 形式集中补齐。每个 Wave 独立提交、独立验证（typecheck + lint + test 全绿）。
+
+### Wave A — Entity AI 闭环通电（commit `f6c0fbf`）
+
+**目标**：把 Entity 从"抽象接入"变为"真实可对话"，Cmd+K 从"全局导航"变为"上下文敏感双模式"。
+
+**交付物**：
+- [x] 多 provider 适配层（`@aether/entity-core/provider.ts`）：OpenAI / Anthropic / Google 统一适配，环境变量配置切换
+- [x] 流式对话端点（`app/api/threads/[threadId]/chat/route.ts`）：SSE 流式 + Entity 回复落库
+- [x] Cmd+K 上下文敏感双模式（`command-palette.tsx`）：无选区→导航模式，有选区→提问模式（自动绑代码锚点）
+- [x] Thread 对话视图（`thread-dialogue.tsx`）：流式消息 + Diff 解析 + Accept
+- [x] Presence 聚合指示器：Humans / Entities in Current 计数
+
+### Wave B — Manifestation 协同审查闭环（commit `663cdd5`）
+
+**目标**：实现愿景"下午 2:00 场景"——预览嵌入右侧面板 + 元素级圈选标注 + 评论自动变成 Thread 并绑定代码。
+
+**交付物**：
+- [x] 预览面板（`manifestation-panel.tsx`）：iframe sandbox 渲染构建产物
+- [x] 圈选标注覆盖层：鼠标拖拽生成矩形标注，记录坐标 + 元素 selector
+- [x] 标注→Thread 闭环：`createThread` 绑 `manifestation_url` + `code_anchor`（含坐标/selector）
+- [x] `current-workspace` 集成：编辑器/预览切换 + ThreadDialogue 预览入口
+
+### Wave C — Drift 离线 UI 指示（commit `7086fec`）
+
+**目标**：实现愿景"离线时仍可工作，重新连接后优雅合并"的可视指示。
+
+**交付物**：
+- [x] Drift 状态条（`drift-status-bar.tsx`）：`useOnlineStatus`（navigator.onLine + 事件）+ `useEditorConnection`（postMessage 跨 iframe）
+- [x] 三态显示：离线（梅红 error）/ 未连接（warning 脉冲）/ 收敛中（中性脉冲）；在线已连接时不显示
+- [x] editor-host `App.tsx` 加 `postMessage` 向 parent 传递连接状态
+
+### 测试守护（commit `a49af49`）
+
+**目标**：为 Wave A/B/C 新增代码补齐单元测试，防止后续重构回归。
+
+**交付物**：
+- [x] 5 个测试文件共 108 用例，覆盖率全部 ≥80%
+  - `entity-core/tests/provider.test.ts`（20）：多 provider 适配 + 消息/工具转换
+  - `web/tests/chat-route.test.ts`（14）：流式端点 9 错误分支 + 成功流式链路
+  - `web/tests/components/drift-status-bar.test.tsx`（15）：离线/连接状态 + postMessage 类型守卫
+  - `web/tests/components/manifestation-panel.test.tsx`（25）：模式切换 + 圈选标注 + createThread 闭环
+  - `web/tests/components/command-palette.test.tsx`（34）：⌘K 唤起 + 导航/提问双模式 + 键盘选择
+- [x] 修复 manifestation-panel 事件冒泡缺陷（`stopPropagation`）
+- [x] 基础设施：`@vitest/coverage-v8` + `@testing-library/react` + jsdom + eslint 测试文件覆盖规则
+
 ## 里程碑依赖与风险门禁
 
 - M0 末完成 Yjs Serverless 持久化技术探测（[risks.md](./risks.md) 风险 1），探测结果决定 M1 收敛服务部署形态。
