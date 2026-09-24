@@ -200,14 +200,14 @@ export default function ManifestationPanel({
                   <div className="mt-1 flex justify-end gap-1">
                     <button
                       type="button"
-                      onClick={() => { setPendingPos(null); setComment('') }}
+                      onClick={(e) => { e.stopPropagation(); setPendingPos(null); setComment('') }}
                       className="rounded px-2 py-0.5 text-caption-10 text-neutral-6 hover:bg-neutral-2"
                     >
                       取消
                     </button>
                     <button
                       type="button"
-                      onClick={() => void handleSubmitAnnotation()}
+                      onClick={(e) => { e.stopPropagation(); void handleSubmitAnnotation() }}
                       disabled={submitting || !comment.trim()}
                       className="btn-primary text-caption-10"
                     >
