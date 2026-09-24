@@ -54,7 +54,7 @@ export default function AuthForms({ oidcProvider, next }: AuthFormsProps) {
       } else {
         await postAuthJson('/api/auth/sign-up/email', { email, password, name })
       }
-      router.push(next ?? '/dashboard')
+      router.push(mode === 'sign-up' ? '/onboarding' : (next ?? '/dashboard'))
       router.refresh()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '请求失败，请稍后再试')

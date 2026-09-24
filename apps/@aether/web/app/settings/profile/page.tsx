@@ -6,6 +6,7 @@ import NavShell from '@/components/nav-shell'
 import PageHeader from '@/components/page-header'
 import ProfileForm from '@/components/settings/profile-form'
 import PasswordForm from '@/components/settings/password-form'
+import UserSettingsTabs from '@/components/settings/user-settings-tabs'
 import { getProfileSession } from '@/app/actions/profile'
 
 export const dynamic = 'force-dynamic'
@@ -21,6 +22,7 @@ export default async function ProfileSettingsPage() {
           title="Profile"
           description="你的 Aether 身份：名称将展示给 Realm 内的人类与 Entity。"
         />
+        <UserSettingsTabs />
 
         {session === null ? (
           <EmptyState />

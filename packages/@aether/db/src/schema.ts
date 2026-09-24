@@ -13,6 +13,7 @@ import {
   uniqueIndex,
   uuid,
   bigserial,
+  boolean,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
@@ -600,5 +601,136 @@ export const oauthAuthorizations = pgTable(
     // Bearer token 解析：哈希唯一索引查找（同 API Key，杜绝时序侧信道）
     index('oauth_authorizations_app_user_idx').on(t.app_id, t.user_id, t.revoked_at),
     index('oauth_authorizations_user_idx').on(t.user_id, t.revoked_at),
+  ],
+)
+// ---- realm_join_codes（团队加入码：单码 + 审批流入口）----
+// 每个 Realm 至多一个活跃码（revoked_at IS NULL）。8 位 base32 短码，全局唯一。
+// 凭码申请进入 realm_join_requests pending，管理员审批后转 active member。
+// 码非高密凭据（知码即可申请），明文存储；轮换即吊销旧码 + 生成新码。
+export const realmJoinCodes = pgTable(
+  'realm_join_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    code: text('code').notNull(),
+    created_by: text('created_by').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    revoked_at: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('realm_join_codes_realm_active_uniq')
+      .on(t.realm_id)
+      .where(sql`${t.revoked_at} IS NULL`),
+    uniqueIndex('realm_join_codes_code_uniq').on(t.code),
+  ],
+)
+// ---- realm_join_requests（加入申请审批流）----
+// 凭 join code 提交即创建 pending 行；管理员 approve 后插 members(active) + organization.addMember。
+// 一用户对一 Realm 至多一个 pending（partial unique）；rejected 后可重新申请。
+export const joinRequestStatusEnum = pgEnum('join_request_status', [
+  'pending',
+  'approved',
+  'rejected',
+])
+export const realmJoinRequests = pgTable(
+  'realm_join_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    // Better-Auth user id；跨包引用，text 不带 references（同 oauth_authorizations.user_id）
+    user_id: text('user_id').notNull(),
+    // 申请时使用的码留痕，即使后续被轮换仍可审计
+    join_code: text('join_code').notNull(),
+    requested_role: text('requested_role').notNull().default('member'),
+    status: joinRequestStatusEnum('status').notNull().default('pending'),
+    message: text('message'),
+    reviewed_by: text('reviewed_by'),
+    reviewed_at: timestamp('reviewed_at', { withTimezone: true }),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('realm_join_requests_realm_status_idx').on(t.realm_id, t.status),
+    index('realm_join_requests_user_idx').on(t.user_id),
+    uniqueIndex('realm_join_requests_realm_user_pending_uniq')
+      .on(t.realm_id, t.user_id)
+      .where(sql`${t.status} = 'pending'`),
+  ],
+)
+// ---- user_ai_configs（用户级 AI provider 配置：自带凭证）----
+// API key 经 AES-GCM 加密入库（密钥 AETHER_INTEGRATION_ENCRYPTION_KEY，复用 realmIntegrations 加密工具）；
+// api_key_prefix 存明文前 8 字符供列表识别。is_default 至多一条（partial unique）。
+export const aiProviderEnum = pgEnum('ai_provider', [
+  'openai',
+  'anthropic',
+  'google',
+  'azure-openai',
+  'custom',
+])
+export const userAiConfigs = pgTable(
+  'user_ai_configs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    user_id: text('user_id').notNull(),
+    provider: aiProviderEnum('provider').notNull(),
+    label: text('label'),
+    api_key_encrypted: text('api_key_encrypted').notNull(),
+    api_key_prefix: text('api_key_prefix').notNull(),
+    model: text('model').notNull(),
+    base_url: text('base_url'),
+    is_default: boolean('is_default').notNull().default(false),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('user_ai_configs_user_idx').on(t.user_id),
+    uniqueIndex('user_ai_configs_user_default_uniq')
+      .on(t.user_id)
+      .where(sql`${t.is_default}`),
+  ],
+)
+// ---- realm_ai_configs（Realm 级 AI provider 配置：团队共享凭证）----
+// owner/admin 管理；Entity 运行时优先取 Realm default，fallback 到用户 default。
+export const realmAiConfigs = pgTable(
+  'realm_ai_configs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    provider: aiProviderEnum('provider').notNull(),
+    label: text('label'),
+    api_key_encrypted: text('api_key_encrypted').notNull(),
+    api_key_prefix: text('api_key_prefix').notNull(),
+    model: text('model').notNull(),
+    base_url: text('base_url'),
+    is_default: boolean('is_default').notNull().default(false),
+    created_by: text('created_by').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('realm_ai_configs_realm_idx').on(t.realm_id),
+    uniqueIndex('realm_ai_configs_realm_default_uniq')
+      .on(t.realm_id)
+      .where(sql`${t.is_default}`),
   ],
 )

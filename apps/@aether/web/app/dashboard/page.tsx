@@ -1,8 +1,11 @@
 // @aether/web · /dashboard：登录后的落点（Yohaku V0.1）
 // 不做通用 SaaS 仪表盘：serif「Realms」承担层级，卡片以 ring 呼吸，
 // 梅红只出现在 Entity 脉冲点与 hover；空态以「虚空」收束，创建即破题。
+import { redirect } from 'next/navigation'
 import { listRealmCards } from '@/lib/realms'
 import { unwrapOr } from '@/lib/action-result'
+import { resolveCurrentActor } from '@/lib/auth-guard'
+import { hasUserOnboarded } from '@/lib/team-join'
 import RealmCard from '@/components/realm-card'
 import NavShell from '@/components/nav-shell'
 import PageHeader from '@/components/page-header'
@@ -11,6 +14,10 @@ import CreateRealmForm from '@/components/create-realm-form'
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
+  const actor = await resolveCurrentActor()
+  if (actor === null) redirect('/login')
+  const onboarded = await hasUserOnboarded()
+  if (!onboarded) redirect('/onboarding')
   const realms = unwrapOr(await listRealmCards(), [])
 
   return (

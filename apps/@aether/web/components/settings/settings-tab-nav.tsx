@@ -30,6 +30,11 @@ export default function SettingsTabNav({ realmId }: SettingsTabNavProps) {
       active: pathname.startsWith(`${base}/members`),
     },
     {
+      href: `${base}/ai`,
+      label: 'AI',
+      active: pathname.startsWith(`${base}/ai`),
+    },
+    {
       href: `${base}/integrations`,
       label: '集成',
       active: pathname.startsWith(`${base}/integrations`),

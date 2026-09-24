@@ -5,9 +5,11 @@ import Link from 'next/link'
 import RenameRealmForm from '@/components/settings/rename-realm-form'
 import ApiKeysPanel from '@/components/settings/api-keys-panel'
 import DangerZone from '@/components/settings/danger-zone'
+import JoinCodePanel from '@/components/settings/join-code-panel'
 import { unwrapOr } from '@/lib/action-result'
 import { getRealm } from '@/lib/realms'
 import { listApiKeys } from '@/lib/api-keys'
+import { getActiveJoinCode } from '@/lib/team-join'
 import { listRealmMembers } from '@/app/actions/membership'
 
 export const dynamic = 'force-dynamic'
@@ -26,6 +28,7 @@ export default async function RealmGeneralSettingsPage({ params }: PageProps) {
     ? membersResult.data.currentActorRole
     : null
   const keys = unwrapOr(await listApiKeys({ realmId }), [])
+  const joinCode = unwrapOr(await getActiveJoinCode({ realmId }), null)
   const isOwner = currentActorRole === 'owner'
 
   return (
@@ -56,6 +59,12 @@ export default async function RealmGeneralSettingsPage({ params }: PageProps) {
       <ApiKeysPanel
         realmId={realm.id}
         initialKeys={keys}
+        canManage={currentActorRole === 'owner' || currentActorRole === 'admin'}
+      />
+
+      <JoinCodePanel
+        realmId={realm.id}
+        initialCode={joinCode?.code ?? null}
         canManage={currentActorRole === 'owner' || currentActorRole === 'admin'}
       />
 

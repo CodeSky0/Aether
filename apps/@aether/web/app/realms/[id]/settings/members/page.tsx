@@ -8,6 +8,8 @@ import {
 import InviteMemberButton from '@/components/settings/invite-member-button'
 import RealmInvitationList from '@/components/realm-invitation-list'
 import MembersTable from '@/components/settings/members-table'
+import JoinRequestsPanel from '@/components/settings/join-requests-panel'
+import { listPendingJoinRequests } from '@/lib/team-join'
 import { UNBOUND_REALM_ORGANIZATION_MESSAGE } from '@/lib/membership-utils'
 import { MEMBERSHIP_DENIED_MESSAGE_PREFIX } from '@/lib/membership-guard'
 
@@ -30,12 +32,14 @@ function renderLoadError(message: string): string {
 export default async function MembersSettingsPage({ params }: PageProps) {
   const { id: realmId } = await params
 
-  const [memberResult, invitationResult] = await Promise.all([
+  const [memberResult, invitationResult, joinRequestResult] = await Promise.all([
     listRealmMembers({ realmId }),
     listRealmInvitations({ realmId }),
+    listPendingJoinRequests({ realmId }),
   ])
   const memberData = memberResult.success ? memberResult.data : null
   const invitations = invitationResult.success ? invitationResult.data : null
+  const joinRequests = joinRequestResult.success ? joinRequestResult.data : []
 
   return (
     <div>
@@ -71,6 +75,9 @@ export default async function MembersSettingsPage({ params }: PageProps) {
             </div>
           </div>
         </>
+      )}
+      {memberData && joinRequests.length > 0 && (
+        <JoinRequestsPanel realmId={realmId} requests={joinRequests} />
       )}
       {invitations && (
         <div className="mt-6">
