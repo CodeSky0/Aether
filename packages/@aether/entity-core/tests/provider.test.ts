@@ -321,7 +321,10 @@ describe('createEntityLanguageModel', () => {
   it('streamText 返回 textStream / text / toolCalls，并调用 streamText', async () => {
     const tokens = ['Hello', ' ', 'World']
     const textStream = (async function* () {
-      for (const t of tokens) yield t
+      for (const t of tokens) {
+        await Promise.resolve()
+        yield t
+      }
     })()
     mockStreamText.mockReturnValue({
       textStream,
