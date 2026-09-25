@@ -14,7 +14,8 @@ import {
 } from '@/lib/auth-guard'
 import { runGuarded, realmIdField, uuidField } from '@/lib/action-result'
 import type { ActionResult } from '@/lib/action-result'
-import { coreCreateThread } from '@/lib/resonance/core'
+import { coreCreateThread, corePatchThread } from '@/lib/resonance/core'
+import { THREAD_STATUSES, type ThreadStatus } from '@/lib/resonance/protocol'
 
 export interface ThreadRow {
   id: string
@@ -130,5 +131,49 @@ export async function listProjects(
       .select({ id: projects.id, name: projects.name, slug: projects.slug })
       .from(projects)
       .where(eq(projects.realm_id, realmId))
+  })
+}
+
+export interface PatchThreadInput {
+  realmId: string
+  threadId: string
+  status: ThreadStatus
+}
+
+const patchThreadInputSchema = z.object({
+  realmId: realmIdField,
+  threadId: uuidField,
+  status: z.enum(THREAD_STATUSES),
+})
+
+/**
+ * 更新 Thread 状态（看板拖拽）。
+ * 消费 corePatchThread（状态机校验 + 审计 + Webhook 事件，同事务）。
+ * 非法状态迁移由核心层拒绝并抛错，runGuarded 收敛为 ActionResult，客户端据此回弹。
+ */
+export async function patchThread(
+  input: z.infer<typeof patchThreadInputSchema>,
+): Promise<ActionResult<{ id: string; status: string }>> {
+  return runGuarded('patchThread', async () => {
+    const parsed = patchThreadInputSchema.parse(input)
+    await requireEntitlement(parsed.realmId, {
+      resource: 'thread',
+      action: 'update',
+    })
+    const sessionActor = await resolveCurrentActor()
+    const actor = sessionActor ?? {
+      actorType: 'human' as const,
+      actorId: 'web-client',
+    }
+    const result = await corePatchThread(getDb(), {
+      threadId: parsed.threadId,
+      realmId: parsed.realmId,
+      status: parsed.status,
+      actor: { ...actor, source: 'session' },
+    })
+    if (!result.ok) {
+      throw new Error(result.message)
+    }
+    return { id: result.data.id, status: result.data.status }
   })
 }

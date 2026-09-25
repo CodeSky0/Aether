@@ -12,6 +12,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 import UserMenu from '@/components/user-menu'
 import CommandPalette from '@/components/ui/command-palette'
 import {
+  IconBoard,
   IconCurrent,
   IconDashboard,
   IconLayers,
@@ -159,6 +160,8 @@ function buildCrumbs(
     if (realmName) crumbs.push({ key: 'realm', label: realmName })
     if (pathname.includes('/current')) {
       crumbs.push({ key: 'current', label: 'current' })
+    } else if (pathname.includes('/board')) {
+      crumbs.push({ key: 'board', label: '看板' })
     } else if (pathname.includes('/audit')) {
       crumbs.push({ key: 'audit', label: 'audit' })
     } else if (pathname.includes('/members')) {
@@ -212,6 +215,12 @@ function Sidebar({
         label: 'Current',
         icon: <IconCurrent className="h-4 w-4" />,
         active: pathname.startsWith(`/realm/${currentRealmId}/current`),
+      },
+      {
+        href: `/realms/${currentRealmId}/board`,
+        label: '看板',
+        icon: <IconBoard className="h-4 w-4" />,
+        active: pathname.startsWith(`/realms/${currentRealmId}/board`),
       },
       {
         href: `/realms/${currentRealmId}/audit`,

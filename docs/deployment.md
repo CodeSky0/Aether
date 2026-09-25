@@ -121,12 +121,12 @@ pnpm --filter @aether/converge-server exec wrangler login
      "crons": [
        {
          "path": "/api/webhooks/dispatch",
-         "schedule": "0 3 * * *"
+          "schedule": "* * * * *"
        }
      ]
    }
    ```
-   > `crons` 配置 Webhook 投递扫描，每天 03:00 UTC 触发 `/api/webhooks/dispatch`。
+    > `crons` 配置 Webhook 投递扫描，每分钟触发 `/api/webhooks/dispatch`。
 5. 配置环境变量（见 [环境变量](#aether-web必需) 章节）
 6. 点击 **Deploy**
 

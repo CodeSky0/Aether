@@ -5,6 +5,16 @@
 import { realmIntegrations } from '@aether/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import {
+  fetchInstallationAccessToken,
+  encryptSecret,
+  decryptSecret,
+  importAesKey,
+} from '@aether/resonance'
+import {
+  requireGithubAppConfig,
+  requireIntegrationEncryptionKey,
+} from '@/lib/github'
 
 export interface RealmIntegrationRow {
   id: string
@@ -108,4 +118,68 @@ export async function upsertGithubIntegration(
     throw new Error('Failed to insert Realm GitHub integration')
   }
   return { id: inserted.id, created: true }
+}
+
+/** token 过期缓冲：提前 5 分钟视为过期，避免请求时刚好过期 */
+const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000
+
+/**
+ * 获取 Realm 的有效 GitHub installation access token（明文）。
+ * 闭环：读 encrypted_token 缓存 → 未过期则解密返回 → 过期/无缓存则换发 → 加密写回 → 返回明文。
+ * 无 GitHub 集成或集成非活跃时返回 null（fail-closed，调用方据此拒绝 GitHub API 调用）。
+ */
+export async function getValidInstallationToken(
+  realmId: string,
+): Promise<string | null> {
+  const db = getDb()
+  const [integration] = await db
+    .select({
+      id: realmIntegrations.id,
+      installation_id: realmIntegrations.installation_id,
+      encrypted_token: realmIntegrations.encrypted_token,
+      token_expires_at: realmIntegrations.token_expires_at,
+      status: realmIntegrations.status,
+    })
+    .from(realmIntegrations)
+    .where(
+      and(
+        eq(realmIntegrations.realm_id, realmId),
+        eq(realmIntegrations.provider, 'github'),
+        eq(realmIntegrations.status, 'active'),
+        isNull(realmIntegrations.deleted_at),
+      ),
+    )
+    .limit(1)
+
+  if (!integration) return null
+
+  // 缓存命中且未过期（留 5 分钟缓冲）
+  if (integration.encrypted_token && integration.token_expires_at) {
+    const expiresAt = integration.token_expires_at.getTime()
+    if (Date.now() + TOKEN_EXPIRY_BUFFER_MS < expiresAt) {
+      const aesKey = await importAesKey(requireIntegrationEncryptionKey())
+      return decryptSecret(integration.encrypted_token, aesKey)
+    }
+  }
+
+  // 换发：App JWT → installation access token
+  const config = requireGithubAppConfig()
+  const { token, expiresAt } = await fetchInstallationAccessToken(
+    integration.installation_id,
+    { appId: config.appId, privateKeyPem: config.privateKeyPem },
+  )
+
+  // 加密写回缓存
+  const aesKey = await importAesKey(requireIntegrationEncryptionKey())
+  const encryptedToken = await encryptSecret(token, aesKey)
+  await db
+    .update(realmIntegrations)
+    .set({
+      encrypted_token: encryptedToken,
+      token_expires_at: expiresAt,
+      updated_at: new Date(),
+    })
+    .where(eq(realmIntegrations.id, integration.id))
+
+  return token
 }

@@ -109,7 +109,7 @@ export default function HomePage() {
         style={{ animationDelay: '240ms' }}
       >
         <p className="text-label-12 text-neutral-6">
-          M0–M2 引擎已就绪 · M3.5 Web UI 已完成 · M3 企业级特性推进中
+          M0–M2 引擎已就绪 · M3 企业级特性已落地 · 实用化推进中
         </p>
       </footer>
     </main>

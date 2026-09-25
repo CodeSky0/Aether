@@ -107,7 +107,6 @@ graph LR
 - [x] Audit Vault：审计中心与导出
 - [x] SSO / SCIM 接入
   - 已完成服务端会话主体解析、Realm membership provisioning（邀请 + JIT 镜像）、邀请邮件投递与既有占位 Realm organization 回填、OIDC 外部 IdP 登录与 Web 登录 UI（M3.14），以及 SCIM 2.0 provisioning 端点（Users 列表 / 创建 / PATCH 启用禁用 / DELETE 回收，M3.15）。SSO/SCIM 任务整体收口。
-- [ ] Realm Isolation 生产级验证
 - [x] Resonance Gateway：全资源公开 API
   - M3.16 已落地 v1 核心资源端点（Realm / Project / Thread / Dialogue / Entity / Current）与 API Key 鉴权（`aeth_` 前缀 + SHA-256 哈希存储 + fail-closed 三重校验），密钥管理入口位于 Realm 设置页，全部写操作以 `api-key:<keyId>` 服务主体落审计。规范见 [specs/m316-resonance-gateway.md](../specs/m316-resonance-gateway.md)。
 - [x] 内部功能 API 化改造（API-First 兑现）

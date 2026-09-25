@@ -69,3 +69,10 @@ export {
   matchesRedirectUri,
   type OAuthScope,
 } from './oauth'
+export {
+  createGithubClient,
+  GithubClientError,
+  type GithubClient,
+  type GithubClientOptions,
+  type GithubRequestInit,
+} from './github-client'

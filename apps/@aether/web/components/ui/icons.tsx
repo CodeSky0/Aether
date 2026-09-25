@@ -130,3 +130,12 @@ export function IconPanelExpand(props: IconProps) {
     </IconBase>
   )
 }
+
+export function IconBoard(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="3" width="7" height="18" rx="1" />
+      <rect x="14" y="3" width="7" height="18" rx="1" />
+    </IconBase>
+  )
+}

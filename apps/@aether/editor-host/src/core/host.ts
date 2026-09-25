@@ -55,8 +55,11 @@ export class EditorHost {
     // 根据 convergeUrl 选择 Provider：
     // - 有 convergeUrl → Hocuspocus WebSocket Provider（生产环境）
     // - 无 convergeUrl → BroadcastChannel Provider（本地开发/离线模式）
+    // converge-server 期望 documentName 格式为 "{realmId}/{docRef}"，
+    // 按 (realmId, docRef) 路由持久化。CF Worker 不解析，直接作 DO 分片键。
+    // 完整每文件独立 Doc 架构（docRef=file:{realmId}:{path}）在方向 1a 落地。
     const providerOptions: Parameters<typeof createProvider>[2] = {
-      docName: docRef,
+      docName: `${init.realmSlug}/${docRef}`,
     }
     if (init.convergeUrl) {
       providerOptions.convergeUrl = init.convergeUrl

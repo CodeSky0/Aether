@@ -71,11 +71,24 @@ export const aetherGithubAppManifest: Omit<GithubAppManifest, 'url'> = {
   description:
     'Aether DevOS — Realm ↔ GitHub 双向共振（Issue↔Thread, PR↔Manifestation）',
   public: false,
-  default_events: ['issues', 'issue_comment', 'pull_request', 'push'],
+  default_events: [
+    'issues',
+    'issue_comment',
+    'pull_request',
+    'pull_request_review',
+    'pull_request_review_comment',
+    'push',
+    'check_run',
+    'check_suite',
+    'workflow_run',
+  ],
   default_permissions: {
     issues: 'write',
     pull_requests: 'write',
     contents: 'read',
     metadata: 'read',
+    checks: 'read',
+    statuses: 'read',
+    actions: 'read',
   },
 }
