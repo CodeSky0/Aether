@@ -1,7 +1,7 @@
 // @aether/editor-host · App 壳。
 // 支持从 URL 参数接收上下文：?realmId=xxx&filePath=/src/App.tsx&actorId=yyy&convergeUrl=wss://...
 // 独立部署时由 Web 项目通过 iframe 嵌入；开发模式下也可独立访问。
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { EditorPane, PresenceBar } from './components/EditorPane'
 import { useEditorHost } from './hooks/useEditorHost'
 import type { ProviderConnectionState } from '@aether/current-sync'
@@ -59,6 +59,51 @@ export default function App() {
       )
     }
   }, [connectionState])
+
+  // 种子机制：converge 重放后若文本仍空，向 parent（web）请求 GitHub 文件内容
+  const seedRequestedRef = useRef(false)
+  const editorTextRef = useRef(editor.text)
+  editorTextRef.current = editor.text
+  const editorSetTextRef = useRef((text: string) => editor.setText(text))
+  editorSetTextRef.current = (text: string) => editor.setText(text)
+
+  useEffect(() => {
+    if (window.parent === window) return
+    if (connectionState !== 'connected') return
+    if (seedRequestedRef.current) return
+
+    const timer = setTimeout(() => {
+      if (editorTextRef.current.length === 0) {
+        seedRequestedRef.current = true
+        window.parent.postMessage(
+          { type: 'aether:editor-request-content', path: context.filePath },
+          '*',
+        )
+      }
+    }, 1500)
+
+    return () => clearTimeout(timer)
+  }, [connectionState, context.filePath])
+
+  // 监听 parent 返回的文件内容并注入（仅在文本为空时，避免覆盖协同内容）
+  useEffect(() => {
+    if (window.parent === window) return
+
+    const handler = (e: MessageEvent) => {
+      const data: unknown = e.data
+      if (typeof data !== 'object' || data === null) return
+      const msg = data as Record<string, unknown>
+      if (msg.type !== 'aether:editor-content') return
+      if (msg.path !== context.filePath) return
+      if (typeof msg.content !== 'string') return
+      if (editorTextRef.current.length === 0) {
+        editorSetTextRef.current(msg.content)
+      }
+    }
+
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [context.filePath])
 
   const connectionStatusText = useMemo(() => {
     switch (connectionState) {

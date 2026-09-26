@@ -2,7 +2,7 @@
 // 组装 Y.Doc + Provider + Presence 为单一时钟对象，供 UI 与 Drift 持久化复用。
 import type * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
-import { createRealmDoc, docRefForRealm, getOrCreateText } from './doc'
+import { createRealmDoc, docRefForFile, getOrCreateText } from './doc'
 import { createProvider, type CurrentProvider } from './provider'
 import { PresenceChannel } from './presence'
 import {
@@ -39,7 +39,7 @@ export class EditorHost {
   private readonly driftStore: IndexedDbDriftStore | null
 
   constructor(init: HostInit) {
-    const docRef = docRefForRealm(init.realmSlug)
+    const docRef = docRefForFile(init.realmSlug, init.filePath)
     this.doc = createRealmDoc(docRef)
     this.filePath = init.filePath
 
@@ -86,7 +86,7 @@ export class EditorHost {
   }
 
   get text(): Y.Text {
-    return getOrCreateText(this.doc, this.filePath)
+    return getOrCreateText(this.doc)
   }
 
   /** 从本地 Drift 存储恢复文档状态，返回恢复的 update 条数 */

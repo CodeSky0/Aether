@@ -18,7 +18,8 @@ export {
 } from './core/provider'
 export {
   createRealmDoc,
+  docRefForFile,
   docRefForRealm,
-  fileKey,
   getOrCreateText,
+  TEXT_KEY,
 } from './core/doc'

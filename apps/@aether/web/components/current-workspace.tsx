@@ -7,7 +7,7 @@
 // 梅红只出现在激活文件、活跃 Entity 脉冲与主 CTA。
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
 import NavShell from '@/components/nav-shell'
@@ -17,19 +17,24 @@ import DriftStatusBar from '@/components/drift-status-bar'
 import type { RealmActorRow } from '@/lib/entities'
 import type { AuditRow } from '@/lib/audit'
 import { createThread, type ThreadRow } from '@/lib/threads'
+import { listRepoTree, readRepoFile } from '@/lib/git-actions'
 import {
   EntityAvatar,
   HandoffIndicator,
   toEntityStatus,
 } from '@/components/ui/entity-avatar'
 
-/** V0.1 静态文件清单：每个 path 映射独立 doc_ref（file:{realmId}:{path}） */
-const WORKSPACE_FILES = [
+/** 无 GitHub 集成时的回退文件清单 */
+const FALLBACK_FILES: WorkspaceFile[] = [
   { path: 'README.md' },
   { path: 'src/main.ts' },
   { path: 'src/current.ts' },
   { path: 'docs/notes.md' },
-] as const
+]
+
+interface WorkspaceFile {
+  path: string
+}
 
 /** Entity 被视为「正在收敛」的窗口：最近 N 毫秒内有非只读审计活动 */
 const HANDOFF_WINDOW_MS = 60_000
@@ -90,12 +95,54 @@ export default function CurrentWorkspace({
   currentActorId,
   currentActorName,
 }: CurrentWorkspaceProps) {
-  const [activePath, setActivePath] = useState<string>(WORKSPACE_FILES[0].path)
+  const [activePath, setActivePath] = useState<string>(FALLBACK_FILES[0]?.path ?? 'README.md')
+  const [files, setFiles] = useState<WorkspaceFile[]>(FALLBACK_FILES)
   const [selection, setSelection] = useState<SelectionInfo | null>(null)
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [activeThreadTitle, setActiveThreadTitle] = useState<string>('')
   const [showManifestation, setShowManifestation] = useState(false)
   const router = useRouter()
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  // 从 GitHub 仓库拉取真实文件树；无集成时回退到 FALLBACK_FILES
+  useEffect(() => {
+    let cancelled = false
+    void listRepoTree(realmId).then((result) => {
+      if (cancelled) return
+      if (result.success && result.data) {
+        const blobs = result.data
+          .filter((e) => e.type === 'blob')
+          .map((e) => ({ path: e.path }))
+        if (blobs.length > 0) setFiles(blobs)
+      }
+    })
+    return () => { cancelled = true }
+  }, [realmId])
+
+  // 监听 editor-host iframe 的内容请求，通过 GitHub API 读取文件内容后回传
+  const handleEditorMessage = useCallback(
+    (e: MessageEvent) => {
+      const data: unknown = e.data
+      if (typeof data !== 'object' || data === null) return
+      const msg = data as Record<string, unknown>
+      if (msg.type !== 'aether:editor-request-content') return
+      if (typeof msg.path !== 'string') return
+      void readRepoFile(realmId, msg.path).then((result) => {
+        if (result.success && result.data !== null) {
+          iframeRef.current?.contentWindow?.postMessage(
+            { type: 'aether:editor-content', path: msg.path, content: result.data },
+            '*',
+          )
+        }
+      })
+    },
+    [realmId],
+  )
+
+  useEffect(() => {
+    window.addEventListener('message', handleEditorMessage)
+    return () => window.removeEventListener('message', handleEditorMessage)
+  }, [handleEditorMessage])
 
   // Entity 信息（对话视图用）
   const activeEntity = actors.find((a) => a.kind === 'entity') ?? null
@@ -129,7 +176,7 @@ export default function CurrentWorkspace({
             Files
           </p>
           <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-            {WORKSPACE_FILES.map((file) => {
+            {files.map((file) => {
               const active = file.path === activePath
               const depth = file.path.split('/').length - 1
               return (
@@ -170,6 +217,7 @@ export default function CurrentWorkspace({
           <div className="min-h-0 flex-1 overflow-hidden bg-neutral-1">
             {/* iframe 加载独立部署的 editor-host 应用 */}
             <iframe
+              ref={iframeRef}
               key={activePath}
               src={editorUrl}
               className="h-full w-full border-0"
@@ -185,12 +233,10 @@ export default function CurrentWorkspace({
             actors={actors}
             entityAuditRows={entityAuditRows}
             onSelectDocRef={(docRef) => {
-              // doc_ref 形如 file:{realmId}:{path}——命中工作区文件则切换编辑器
+              // doc_ref 形如 file:{realmId}:{path}——提取 path 并切换编辑器
               const path = docRef.split(':').slice(2).join(':')
-              if (WORKSPACE_FILES.some((f) => f.path === path)) {
-                setActivePath(path)
-                setSelection(null)
-              }
+              setActivePath(path)
+              setSelection(null)
             }}
           />
         </aside>
@@ -403,9 +449,7 @@ function ActivityTrail({
         const label = AUDIT_ACTION_LABEL[row.action] ?? row.action
         const target = row.doc_ref ?? row.entity_id ?? '—'
         const path = row.doc_ref?.split(':').slice(2).join(':')
-        const clickable =
-          path !== undefined &&
-          WORKSPACE_FILES.some((f) => f.path === path)
+        const clickable = path !== undefined
         return (
           <li key={row.id} className="border-b border-border last:border-b-0">
             <button

@@ -1,40 +1,35 @@
-// @aether/editor-host · Yjs Provider 基线 —— Y.Doc 工厂。
-// 按 @aether/types 的 YDocPartitionKey 契约初始化 Realm Y.Doc 顶层结构。
-// M0 基线只建立 code 分区（Y.Text），M1 由 @aether/current-sync 扩展全部分区。
-//
-// P2-11 修复：统一 Y.Doc 顶层结构与 @aether/web current-editor 一致。
-// 双方均使用 doc.getMap('content') 作为顶层分区容器：
-//   - web: content.get('text') → 单文本编辑器 Y.Text
-//   - editor-host: content.get('code:<filePath>') → 代码文件 Y.Text
-// 这样同一 Realm 文档在两个宿主间结构兼容，接入 Hocuspocus 后可互开。
+// @aether/editor-host · Y.Doc 工厂 —— 每文件独立 Yjs Doc。
+// doc_ref = file:{realmSlug}:{filePath}，每个文件一个独立 Y.Doc，
+// 文本存于顶层 'text' Y.Text（不再用 content Map 多 key）。
+// converge-server 按 (realmId, docRef) 路由，天然按文件隔离。
 import * as Y from 'yjs'
-export const REALM_DOC_REF_PREFIX = 'realm:'
-/** 顶层 content Map 的 key（与 @aether/web current-editor 保持一致） */
-export const CONTENT_MAP_KEY = 'content'
-/** 由 realm slug 派生稳定的 doc_ref（Yjs 文档唯一标识） */
-export function docRefForRealm(realmSlug: string): string {
-  return `${REALM_DOC_REF_PREFIX}${realmSlug}`
+
+/** 顶层 Y.Text 的 key（每文件独立 Doc，文本存于顶层） */
+export const TEXT_KEY = 'text'
+
+/** 由 realm + filePath 派生稳定的 doc_ref（每文件独立 Yjs Doc） */
+export function docRefForFile(realmSlug: string, filePath: string): string {
+  return `file:${realmSlug}:${filePath}`
 }
-/** code 分区在 content Map 中的 key */
-export function fileKey(filePath: string): string {
-  return `code:${filePath}`
-}
+
 /**
- * 创建 Realm Y.Doc 基线，doc_ref 作为文档唯一标识。
- * M0 供编辑器宿主绑定文本；M1 扩展 presence/entityCursors/threads 等分区。
+ * @deprecated 用 docRefForFile 代替。
+ * 保留供 drift 测试兼容；生产代码应用 docRefForFile 按文件派生 doc_ref。
+ */
+export function docRefForRealm(realmSlug: string): string {
+  return docRefForFile(realmSlug, '__realm__')
+}
+
+/**
+ * 创建 Y.Doc 基线，doc_ref 作为文档唯一标识。
  */
 export function createRealmDoc(docRef: string): Y.Doc {
   const doc = new Y.Doc()
   doc.guid = docRef
   return doc
 }
-/** 取或建某个文件路径的 Y.Text（存于顶层 content Map 中，与 web 结构统一） */
-export function getOrCreateText(doc: Y.Doc, filePath: string): Y.Text {
-  const contentMap = doc.getMap(CONTENT_MAP_KEY)
-  const key = fileKey(filePath)
-  const existing = contentMap.get(key)
-  if (existing instanceof Y.Text) return existing
-  const text = new Y.Text('')
-  contentMap.set(key, text)
-  return text
+
+/** 取或建顶层 Y.Text（每文件独立 Doc，文本存于顶层 'text' key） */
+export function getOrCreateText(doc: Y.Doc): Y.Text {
+  return doc.getText(TEXT_KEY)
 }
