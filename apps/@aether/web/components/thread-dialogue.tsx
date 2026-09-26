@@ -6,6 +6,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { listDialogues, type DialogueRow } from '@/app/actions/threads'
 import { EntityAvatar, toEntityStatus } from '@/components/ui/entity-avatar'
@@ -48,6 +49,13 @@ export default function ThreadDialogue({
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const router = useRouter()
+
+  // 检测 manifestationUrl 是否为 GitHub PR URL，是则跳转 PR 评审页
+  const prNumber = manifestationUrl
+    ? (manifestationUrl.match(/\/pull\/(\d+)$/)?.[1] ?? null)
+    : null
+  const prNumberInt = prNumber !== null ? parseInt(prNumber, 10) : null
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -165,7 +173,16 @@ export default function ThreadDialogue({
         <span className="ml-auto shrink-0 font-mono text-caption-10 uppercase tracking-wider text-neutral-5">
           Thread
         </span>
-        {manifestationUrl && onShowManifestation && (
+        {manifestationUrl && prNumberInt !== null && (
+          <button
+            type="button"
+            onClick={() => { router.push(`/realms/${realmId}/prs/${prNumberInt}`) }}
+            className="shrink-0 rounded-md bg-neutral-2 px-2.5 py-1 text-label-12 text-neutral-7 transition hover:text-neutral-9"
+          >
+            查看 PR
+          </button>
+        )}
+        {manifestationUrl && prNumberInt === null && onShowManifestation && (
           <button
             type="button"
             onClick={onShowManifestation}

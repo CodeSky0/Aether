@@ -6,7 +6,7 @@
 // installation_id 反查 realm_integrations 定位 Realm；project 取该 Realm 首个 project。
 // M3.18 API-First 收口：全部业务写入走 Resonance 业务核心（core.ts），
 // 与公开 API 共享状态机 / 审计 / Webhook 事件语义。
-import { threads, projects, realmIntegrations } from '@aether/db'
+import { threads, projects, realmIntegrations, pullRequests, prReviews, prReviewComments, ciRuns } from '@aether/db'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { createLogger } from '@/lib/logger'
 import {
@@ -156,6 +156,12 @@ export async function handleGithubEvent(
         return await handleIssueComment(db, realmId, actor, payload as IssueCommentPayload)
       case 'pull_request':
         return await handlePullRequest(db, realmId, actor, payload as PullRequestPayload)
+      case 'pull_request_review':
+        return await handlePullRequestReview(db, realmId, payload as PullRequestReviewPayload)
+      case 'pull_request_review_comment':
+        return await handlePullRequestReviewComment(db, realmId, payload as PullRequestReviewCommentPayload)
+      case 'check_run':
+        return await handleCheckRun(db, realmId, payload as CheckRunPayload)
       case 'push':
         return { status: 'ignored', reason: 'push events not mapped yet' }
       default:
@@ -324,4 +330,218 @@ async function handlePullRequest(
     return { status: 'ignored', reason: result.message }
   }
   return { status: 'processed', reason: `manifestation url linked to thread ${linked.id}` }
+}
+
+// ---- 方向 3/4 webhook 事件处理 ----
+
+interface GithubRepository {
+  full_name: string
+}
+
+interface PullRequestReviewPayload {
+  action: string
+  repository: GithubRepository
+  pull_request: {
+    number: number
+    title: string
+    state: string
+    draft: boolean
+    head: { sha: string }
+    base: { sha: string }
+    user: { login: string }
+  }
+  review: {
+    id: number
+    state: string
+    body: string | null
+    user: { login: string } | null
+    submitted_at: string
+  }
+}
+
+interface PullRequestReviewCommentPayload {
+  action: string
+  pull_request: { number: number }
+  comment: {
+    id: number
+    path: string
+    line: number | null
+    side: string | null
+    body: string
+    user: { login: string } | null
+    created_at: string
+  }
+  review: { id: number } | null
+}
+
+interface CheckRunPayload {
+  action: string
+  repository: GithubRepository
+  check_run: {
+    id: number
+    name: string
+    status: string
+    conclusion: string | null
+    started_at: string | null
+    completed_at: string | null
+    html_url: string | null
+    details_url: string | null
+    head_sha: string
+  }
+}
+
+/** upsert pull_requests 镜像记录 */
+async function upsertPullRequest(
+  db: CoreDatabase,
+  realmId: string,
+  repoFullName: string,
+  pr: PullRequestReviewPayload['pull_request'],
+) {
+  await db
+    .insert(pullRequests)
+    .values({
+      realm_id: realmId,
+      number: pr.number,
+      repo_full_name: repoFullName,
+      head_sha: pr.head.sha,
+      base_sha: pr.base.sha,
+      state: pr.draft ? 'draft' : (pr.state as 'open' | 'closed' | 'merged'),
+      title: pr.title,
+      author: pr.user.login,
+    })
+    .onConflictDoUpdate({
+      target: [pullRequests.realm_id, pullRequests.number],
+      set: {
+        head_sha: pr.head.sha,
+        base_sha: pr.base.sha,
+        state: pr.draft ? 'draft' : (pr.state as 'open' | 'closed' | 'merged'),
+        title: pr.title,
+        updated_at: new Date(),
+      },
+    })
+}
+
+async function handlePullRequestReview(
+  db: CoreDatabase,
+  realmId: string,
+  payload: PullRequestReviewPayload,
+): Promise<GithubWebhookResult> {
+  if (payload.action !== 'submitted' && payload.action !== 'dismissed') {
+    return { status: 'ignored', reason: `pull_request_review.${payload.action} not mapped` }
+  }
+
+  await upsertPullRequest(db, realmId, payload.repository.full_name, payload.pull_request)
+
+  const [prRow] = await db
+    .select({ id: pullRequests.id })
+    .from(pullRequests)
+    .where(and(eq(pullRequests.realm_id, realmId), eq(pullRequests.number, payload.pull_request.number)))
+    .limit(1)
+  if (!prRow) return { status: 'error', reason: 'pull_request upsert failed' }
+
+  if (payload.action === 'submitted') {
+    await db.insert(prReviews).values({
+      pr_id: prRow.id,
+      review_id: payload.review.id,
+      state: payload.review.state.toLowerCase() as 'approved' | 'changes_requested' | 'commented' | 'dismissed',
+      body: payload.review.body,
+      reviewer: payload.review.user?.login ?? 'unknown',
+      submitted_at: new Date(payload.review.submitted_at),
+    }).onConflictDoUpdate({
+      target: [prReviews.review_id],
+      set: {
+        state: payload.review.state.toLowerCase() as 'approved' | 'changes_requested' | 'commented' | 'dismissed',
+        body: payload.review.body,
+      },
+    })
+  } else {
+    await db.update(prReviews)
+      .set({ state: 'dismissed' })
+      .where(eq(prReviews.review_id, payload.review.id))
+  }
+
+  return { status: 'processed', reason: `review ${payload.action}` }
+}
+
+async function handlePullRequestReviewComment(
+  db: CoreDatabase,
+  realmId: string,
+  payload: PullRequestReviewCommentPayload,
+): Promise<GithubWebhookResult> {
+  if (payload.action !== 'created') {
+    return { status: 'ignored', reason: `pull_request_review_comment.${payload.action} not mapped` }
+  }
+
+  const [prRow] = await db
+    .select({ id: pullRequests.id })
+    .from(pullRequests)
+    .where(and(eq(pullRequests.realm_id, realmId), eq(pullRequests.number, payload.pull_request.number)))
+    .limit(1)
+  if (!prRow) return { status: 'ignored', reason: 'no pull_request record' }
+
+  const reviewId = payload.review?.id
+  let reviewRowId: string | null = null
+  if (reviewId !== undefined) {
+    const [reviewRow] = await db
+      .select({ id: prReviews.id })
+      .from(prReviews)
+      .where(eq(prReviews.review_id, reviewId))
+      .limit(1)
+    reviewRowId = reviewRow?.id ?? null
+  }
+
+  await db.insert(prReviewComments).values({
+    pr_id: prRow.id,
+    review_id: reviewRowId,
+    path: payload.comment.path,
+    line: payload.comment.line,
+    side: payload.comment.side,
+    body: payload.comment.body,
+    author: payload.comment.user?.login ?? 'unknown',
+    created_at: new Date(payload.comment.created_at),
+  })
+
+  return { status: 'processed', reason: 'review comment created' }
+}
+
+async function handleCheckRun(
+  db: CoreDatabase,
+  realmId: string,
+  payload: CheckRunPayload,
+): Promise<GithubWebhookResult> {
+  const cc = payload.check_run
+  const [existing] = await db
+    .select({ id: ciRuns.id })
+    .from(ciRuns)
+    .where(and(eq(ciRuns.realm_id, realmId), eq(ciRuns.head_sha, cc.head_sha), eq(ciRuns.name, cc.name)))
+    .limit(1)
+
+  const status = cc.status as 'queued' | 'in_progress' | 'completed'
+  const conclusion = cc.conclusion as 'success' | 'failure' | 'neutral' | 'cancelled' | 'timed_out' | null
+
+  if (existing) {
+    await db.update(ciRuns).set({
+      status,
+      conclusion,
+      started_at: cc.started_at ? new Date(cc.started_at) : null,
+      completed_at: cc.completed_at ? new Date(cc.completed_at) : null,
+      html_url: cc.html_url,
+      details_url: cc.details_url,
+    }).where(eq(ciRuns.id, existing.id))
+  } else {
+    await db.insert(ciRuns).values({
+      realm_id: realmId,
+      repo_full_name: payload.repository.full_name,
+      head_sha: cc.head_sha,
+      name: cc.name,
+      status,
+      conclusion,
+      started_at: cc.started_at ? new Date(cc.started_at) : null,
+      completed_at: cc.completed_at ? new Date(cc.completed_at) : null,
+      html_url: cc.html_url,
+      details_url: cc.details_url,
+    })
+  }
+
+  return { status: 'processed', reason: `check_run ${payload.action}` }
 }
