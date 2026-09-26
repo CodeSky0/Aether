@@ -1,0 +1,91 @@
+# Aether 自托管 docker-compose
+# 用法：docker compose up -d
+# 前置：在 .env 中配置 DATABASE_URL / BETTER_AUTH_SECRET / BETTER_AUTH_URL 等
+# 迁移：首次启动后执行 pnpm --filter @aether/db db:migrate（或用 init 容器）
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aether
+      POSTGRES_USER: aether
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aether_dev}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aether -d aether"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  converge-server:
+    build:
+      context: .
+      dockerfile: apps/@aether/converge-server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 1234
+      DATABASE_URL: postgresql://aether:${POSTGRES_PASSWORD:-aether_dev}@postgres:5432/aether
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "1234:1234"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/@aether/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      converge-server:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://aether:${POSTGRES_PASSWORD:-aether_dev}@postgres:5432/aether
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      NEXT_PUBLIC_EDITOR_HOST_URL: ${NEXT_PUBLIC_EDITOR_HOST_URL:-http://localhost:80}
+      NEXT_PUBLIC_CONVERGE_SERVER_URL: ${NEXT_PUBLIC_CONVERGE_SERVER_URL:-ws://localhost:1234}
+    ports:
+      - "3000:3000"
+
+  editor-host:
+    build:
+      context: .
+      dockerfile: apps/@aether/editor-host/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      converge-server:
+        condition: service_started
+    environment:
+      NEXT_PUBLIC_CONVERGE_SERVER_URL: ${NEXT_PUBLIC_CONVERGE_SERVER_URL:-ws://localhost:1234}
+    ports:
+      - "80:80"
+
+volumes:
+  postgres-data:
+  redis-data:
