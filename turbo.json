@@ -11,7 +11,8 @@
         "TAILWIND_VERSION",
         "AETHER_CONFIG_HASH",
         "AETHER_EDITOR_HOST_BASE",
-        "AETHER_EDITOR_HOST_APP_BUILD"
+        "AETHER_EDITOR_HOST_APP_BUILD",
+        "VERCEL"
       ]
     },
     "check": {
