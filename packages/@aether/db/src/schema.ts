@@ -734,3 +734,83 @@ export const realmAiConfigs = pgTable(
       .where(sql`${t.is_default}`),
   ],
 )
+
+// ---- PR 评审闭环（方向 3）----
+// pull_requests：GitHub PR 镜像，与 Thread 可选关联
+export const prStateEnum = pgEnum('pr_state', ['open', 'closed', 'merged', 'draft'])
+export const prReviewStateEnum = pgEnum('pr_review_state', [
+  'approved',
+  'changes_requested',
+  'commented',
+  'dismissed',
+])
+
+export const pullRequests = pgTable(
+  'pull_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    thread_id: uuid('thread_id').references(() => threads.id),
+    number: integer('number').notNull(),
+    repo_full_name: text('repo_full_name').notNull(),
+    head_sha: text('head_sha').notNull(),
+    base_sha: text('base_sha').notNull(),
+    state: prStateEnum('state').notNull().default('open'),
+    title: text('title').notNull(),
+    author: text('author').notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('pull_requests_realm_idx').on(t.realm_id),
+    uniqueIndex('pull_requests_realm_number_uniq').on(t.realm_id, t.number),
+  ],
+)
+
+export const prReviews = pgTable(
+  'pr_reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pr_id: uuid('pr_id')
+      .notNull()
+      .references(() => pullRequests.id),
+    review_id: integer('review_id').notNull(),
+    state: prReviewStateEnum('state').notNull(),
+    body: text('body'),
+    reviewer: text('reviewer').notNull(),
+    submitted_at: timestamp('submitted_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('pr_reviews_pr_idx').on(t.pr_id),
+    uniqueIndex('pr_reviews_review_id_uniq').on(t.review_id),
+  ],
+)
+
+export const prReviewComments = pgTable(
+  'pr_review_comments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pr_id: uuid('pr_id')
+      .notNull()
+      .references(() => pullRequests.id),
+    review_id: uuid('review_id').references(() => prReviews.id),
+    path: text('path').notNull(),
+    line: integer('line'),
+    side: text('side'),
+    in_reply_to_id: uuid('in_reply_to_id'),
+    body: text('body').notNull(),
+    author: text('author').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('pr_review_comments_pr_idx').on(t.pr_id),
+    index('pr_review_comments_path_idx').on(t.pr_id, t.path),
+  ],
+)

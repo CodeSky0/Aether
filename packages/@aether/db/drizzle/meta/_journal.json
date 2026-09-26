@@ -57,6 +57,13 @@
       "when": 1790258952258,
       "tag": "0007_aberrant_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790345352000,
+      "tag": "0008_pr_review_tables",
+      "breakpoints": true
     }
   ]
 }

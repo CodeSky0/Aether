@@ -21,6 +21,42 @@ export interface CommitResult {
   sha: string
 }
 
+export interface PRInfo {
+  number: number
+  title: string
+  state: string
+  head_sha: string
+  base_sha: string
+  author: string
+  draft: boolean
+}
+
+export interface PRFile {
+  filename: string
+  status: 'added' | 'removed' | 'modified' | 'renamed'
+  additions: number
+  deletions: number
+  patch?: string
+}
+
+export interface PRReview {
+  id: number
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING'
+  body: string | null
+  reviewer: string
+  submitted_at: string
+}
+
+export interface PRComment {
+  id: number
+  path: string
+  line: number | null
+  side: string | null
+  body: string
+  author: string
+  created_at: string
+}
+
 export interface GithubApi {
   client: GithubClient
   /** 列出仓库文件树（recursive） */
@@ -39,6 +75,23 @@ export interface GithubApi {
     content: string,
     message: string,
   ): Promise<CommitResult>
+  /** 获取 PR 基本信息 */
+  getPR(repoFullName: string, number: number): Promise<PRInfo>
+  /** 获取 PR 文件 diff 列表 */
+  getPRFiles(repoFullName: string, number: number): Promise<PRFile[]>
+  /** 获取 PR review 列表 */
+  getPRReviews(repoFullName: string, number: number): Promise<PRReview[]>
+  /** 获取 PR review 评论列表 */
+  getPRComments(repoFullName: string, number: number): Promise<PRComment[]>
+  /** 提交 review（approve / request changes / comment） */
+  createReview(
+    repoFullName: string,
+    number: number,
+    event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+    body?: string,
+  ): Promise<{ id: number }>
+  /** 合并 PR */
+  mergePR(repoFullName: string, number: number): Promise<{ sha: string }>
 }
 
 /**
@@ -169,6 +222,104 @@ export function createGithubApi(realmId: string): GithubApi {
       )
 
       return { sha: newCommitData.sha }
+    },
+    async getPR(repoFullName, number) {
+      const data = await client.request<{
+        number: number
+        title: string
+        state: string
+        draft: boolean
+        head: { sha: string }
+        base: { sha: string }
+        user: { login: string }
+      }>(`/repos/${repoFullName}/pulls/${number}`)
+      return {
+        number: data.number,
+        title: data.title,
+        state: data.state,
+        head_sha: data.head.sha,
+        base_sha: data.base.sha,
+        author: data.user.login,
+        draft: data.draft,
+      }
+    },
+    async getPRFiles(repoFullName, number) {
+      const data = await client.request<
+        Array<{
+          filename: string
+          status: string
+          additions: number
+          deletions: number
+          patch?: string
+        }>
+      >(`/repos/${repoFullName}/pulls/${number}/files?per_page=100`)
+      return data.map((f) => ({
+        filename: f.filename,
+        status: f.status as PRFile['status'],
+        additions: f.additions,
+        deletions: f.deletions,
+        ...(f.patch !== undefined ? { patch: f.patch } : {}),
+      }))
+    },
+    async getPRReviews(repoFullName, number) {
+      const data = await client.request<
+        Array<{
+          id: number
+          state: string
+          body: string | null
+          user: { login: string } | null
+          submitted_at: string
+        }>
+      >(`/repos/${repoFullName}/pulls/${number}/reviews?per_page=100`)
+      return data.map((r) => ({
+        id: r.id,
+        state: r.state as PRReview['state'],
+        body: r.body,
+        reviewer: r.user?.login ?? 'unknown',
+        submitted_at: r.submitted_at,
+      }))
+    },
+    async getPRComments(repoFullName, number) {
+      const data = await client.request<
+        Array<{
+          id: number
+          path: string
+          line: number | null
+          side: string | null
+          body: string
+          user: { login: string } | null
+          created_at: string
+        }>
+      >(`/repos/${repoFullName}/pulls/${number}/comments?per_page=100`)
+      return data.map((c) => ({
+        id: c.id,
+        path: c.path,
+        line: c.line,
+        side: c.side,
+        body: c.body,
+        author: c.user?.login ?? 'unknown',
+        created_at: c.created_at,
+      }))
+    },
+    async createReview(repoFullName, number, event, body) {
+      const data = await client.request<{ id: number }>(
+        `/repos/${repoFullName}/pulls/${number}/reviews`,
+        {
+          method: 'POST',
+          body: {
+            event,
+            ...(body !== undefined ? { body } : {}),
+          },
+        },
+      )
+      return { id: data.id }
+    },
+    async mergePR(repoFullName, number) {
+      const data = await client.request<{ sha: string }>(
+        `/repos/${repoFullName}/pulls/${number}/merge`,
+        { method: 'PUT' },
+      )
+      return { sha: data.sha }
     },
   }
 }
