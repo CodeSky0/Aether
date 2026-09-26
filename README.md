@@ -177,8 +177,9 @@ const expected = 'sha256=' + crypto.createHmac('sha256', secret)
 ```
 
 投递失败按指数退避重试（30s 起翻倍、封顶 1h，8 次后 exhausted）；投递扫描
-由 Vercel Cron 每分钟触发 `/api/webhooks/dispatch`（Bearer
-`AETHER_WEBHOOK_DISPATCH_TOKEN` 鉴权，未配置即 503 fail-closed）。规范详见
+由外部 Cron 高频触发 `/api/webhooks/dispatch`（Bearer
+`AETHER_WEBHOOK_DISPATCH_TOKEN` 鉴权，未配置即 503 fail-closed；Vercel Hobby
+仅允许每日 Cron，故生产部署改用外部调度）。规范详见
 [docs/specs/m317-webhook-constellation.md](docs/specs/m317-webhook-constellation.md)。
 
 ### OAuth App Registry（第三方应用授权）

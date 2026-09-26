@@ -117,16 +117,12 @@ pnpm --filter @aether/converge-server exec wrangler login
    {
      "framework": "nextjs",
      "installCommand": "pnpm install --frozen-lockfile",
-     "buildCommand": "cd ../../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/web",
-     "crons": [
-       {
-         "path": "/api/webhooks/dispatch",
-          "schedule": "* * * * *"
-       }
-     ]
+     "buildCommand": "cd ../../.. && node scripts/vercel-build.mjs && pnpm turbo run build --filter=@aether/web"
    }
    ```
-    > `crons` 配置 Webhook 投递扫描，每分钟触发 `/api/webhooks/dispatch`。
+    > Webhook 投递扫描端点 `/api/webhooks/dispatch` 已改为由**外部 Cron** 触发
+    >（Vercel Hobby 计划仅允许每日 Cron，无法承载近实时 outbox 投递；配置见
+    > [外部 Cron 触发](#外部-cron-触发webhook-投递扫描)）。
 5. 配置环境变量（见 [环境变量](#aether-web必需) 章节）
 6. 点击 **Deploy**
 
@@ -303,7 +299,7 @@ wscat -c "wss://aether-converge.your-subdomain.workers.dev/ws/realm-abc%2Fcurren
 | `RESEND_API_KEY` | Resend API Key（`AETHER_MAIL_PROVIDER=resend` 时必填） |
 | `AETHER_MAIL_FROM` | 发件人地址（`AETHER_MAIL_PROVIDER=resend` 时必填） |
 | `AETHER_INTEGRATION_ENCRYPTION_KEY` | 集成凭据加密密钥（base64 编码 32 字节；GitHub App / Webhook 时必填） |
-| `AETHER_WEBHOOK_DISPATCH_TOKEN` | Webhook 投递扫描端点 Bearer token（Vercel Cron 鉴权） |
+| `AETHER_WEBHOOK_DISPATCH_TOKEN` | Webhook 投递扫描端点 Bearer token（外部 Cron 调用鉴权） |
 | `AETHER_GITHUB_APP_ID` | GitHub App numeric ID（Resonance Bridge） |
 | `AETHER_GITHUB_APP_SLUG` | GitHub App slug |
 | `AETHER_GITHUB_APP_PRIVATE_KEY` | GitHub App PEM 私钥（多行用 `\n` 转义） |
@@ -318,6 +314,70 @@ wscat -c "wss://aether-converge.your-subdomain.workers.dev/ws/realm-abc%2Fcurren
 
 **无需环境变量**。CF Workers 部署不依赖 Postgres / Redis，Yjs 文档状态持久化
 在 Durable Object Storage 中。
+
+---
+
+## 外部 Cron 触发（Webhook 投递扫描）
+
+Webhook Constellation 的 outbox 投递扫描端点 `POST /api/webhooks/dispatch`
+需要高频触发（近实时投递 pending 队列）。Vercel Hobby 计划仅允许每日 Cron，
+无法承载，故 `vercel.json` 不再声明 `crons`，改由外部调度器调用。
+
+端点鉴权：`Authorization: Bearer $AETHER_WEBHOOK_DISPATCH_TOKEN`（未配置端点
+503 fail-closed）。任选以下一种外部调度方式，将 `AETHER_WEBHOOK_DISPATCH_TOKEN`
+设为同一强随机值。
+
+### 方式一：GitHub Actions scheduled（推荐，仓库内）
+
+仓库根目录 `.github/workflows/webhook-dispatch-cron.yml`：
+
+```yaml
+name: webhook-dispatch-cron
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # 每 5 分钟（GitHub Actions 最小间隔）
+  workflow_dispatch: {}
+jobs:
+  dispatch:
+    if: ${{ secrets.AETHER_WEBHOOK_DISPATCH_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -fsS -X POST "$AETHER_WEBHOOK_DISPATCH_URL" \
+            -H "Authorization: Bearer $AETHER_WEBHOOK_DISPATCH_TOKEN"
+        env:
+          AETHER_WEBHOOK_DISPATCH_URL: ${{ secrets.AETHER_WEBHOOK_DISPATCH_URL }}
+          AETHER_WEBHOOK_DISPATCH_TOKEN: ${{ secrets.AETHER_WEBHOOK_DISPATCH_TOKEN }}
+```
+
+需在仓库 Settings → Secrets and variables → Actions 配置：
+- `AETHER_WEBHOOK_DISPATCH_URL`：如 `https://aether.example.com/api/webhooks/dispatch`
+- `AETHER_WEBHOOK_DISPATCH_TOKEN`：与 Vercel 项目环境变量同值
+
+> GitHub Actions schedule 不保证准时（高峰期可能延迟/跳过），最小间隔 5 分钟。
+> 若需每分钟或更高可靠性，用方式二。
+
+### 方式二：cron-job.org（每分钟，免费）
+
+1. 注册 [cron-job.org](https://cron-job.org)（免费版支持每分钟）
+2. 新建 job：
+   - URL：`https://aether.example.com/api/webhooks/dispatch`
+   - Method：`POST`
+   - Header：`Authorization: Bearer <AETHER_WEBHOOK_DISPATCH_TOKEN>`
+   - Schedule：每分钟
+3. `AETHER_WEBHOOK_DISPATCH_TOKEN` 与 Vercel 项目环境变量同值
+
+### 本地开发
+
+本地无需 Cron，手动触发即可：
+
+```bash
+curl -X POST http://localhost:3000/api/webhooks/dispatch \
+  -H "Authorization: Bearer $AETHER_WEBHOOK_DISPATCH_TOKEN"
+```
+
+自托管（docker-compose）场景可用 `supercronic` 调度（见
+`practicality-plan.md` 方向 2）。
 
 ---
 

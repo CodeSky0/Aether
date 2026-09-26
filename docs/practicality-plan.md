@@ -28,7 +28,7 @@ Aether 实现完成度已很高，**不是 demo**：
 | 3 | **PR 评审闭环 UI** | PR↔Manifestation 映射已有，但缺在 Aether 内看 diff / approve / merge 的完整 UI | 评审环节未闭环 |
 | 4 | **CI/CD 结果可视化** | CI 在 GitHub Actions，结果未回流 Aether | 运维环节断裂 |
 | 5 | **Thread 看板视图** | Thread 有状态机但无看板 UI | 任务流转不直观 |
-| 6 | **文档 / 配置不一致** | `vercel.json` Cron 每天 3 点，README 说"每分钟" | 小修 |
+| 6 | **文档 / 配置不一致** | 已解决：`vercel.json` 移除 Cron，webhook 投递改外部 Cron 触发（Vercel Hobby 仅允许每日 Cron） | 已闭环 |
 
 ---
 
@@ -229,7 +229,7 @@ editor-host (80) ── [NEXT_PUBLIC_CONVERGE_SERVER_URL→ws://converge-server:
 
 ### 改动
 
-- `apps/@aether/web/vercel.json` cron `0 3 * * *` vs README "每分钟"——对齐文案（改 README 或改 cron 频率，取决于业务意图）
+- `apps/@aether/web/vercel.json` Cron 已移除，webhook 投递改外部 Cron 触发（Vercel Hobby 仅允许每日 Cron）——README / deployment.md 已同步
 - `docs/roadmap/milestones.md`：M3.20 / M3.21 已落地但未勾选，补勾 + 同步状态文案
 - `apps/@aether/web/app/page.tsx:113` 首页状态文案同步
 
