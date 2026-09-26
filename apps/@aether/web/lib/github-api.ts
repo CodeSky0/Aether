@@ -57,6 +57,18 @@ export interface PRComment {
   created_at: string
 }
 
+export interface CheckRun {
+  id: number
+  name: string
+  status: 'queued' | 'in_progress' | 'completed'
+  conclusion: string | null
+  started_at: string | null
+  completed_at: string | null
+  html_url: string | null
+  details_url: string | null
+  head_sha: string
+}
+
 export interface GithubApi {
   client: GithubClient
   /** 列出仓库文件树（recursive） */
@@ -92,6 +104,8 @@ export interface GithubApi {
   ): Promise<{ id: number }>
   /** 合并 PR */
   mergePR(repoFullName: string, number: number): Promise<{ sha: string }>
+  /** 列出指定 ref（SHA 或分支名）的 check runs */
+  listCheckRunsForRef(repoFullName: string, ref: string): Promise<CheckRun[]>
 }
 
 /**
@@ -320,6 +334,32 @@ export function createGithubApi(realmId: string): GithubApi {
         { method: 'PUT' },
       )
       return { sha: data.sha }
+    },
+    async listCheckRunsForRef(repoFullName, ref) {
+      const data = await client.request<{
+        check_runs: Array<{
+          id: number
+          name: string
+          status: string
+          conclusion: string | null
+          started_at: string | null
+          completed_at: string | null
+          html_url: string | null
+          details_url: string | null
+          head_sha: string
+        }>
+      }>(`/repos/${repoFullName}/commits/${encodeURIComponent(ref)}/check-runs?per_page=100`)
+      return data.check_runs.map((r) => ({
+        id: r.id,
+        name: r.name,
+        status: r.status as CheckRun['status'],
+        conclusion: r.conclusion,
+        started_at: r.started_at,
+        completed_at: r.completed_at,
+        html_url: r.html_url,
+        details_url: r.details_url,
+        head_sha: r.head_sha,
+      }))
     },
   }
 }

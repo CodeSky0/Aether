@@ -814,3 +814,38 @@ export const prReviewComments = pgTable(
     index('pr_review_comments_path_idx').on(t.pr_id, t.path),
   ],
 )
+
+// ---- CI/CD 结果可视化（方向 4）----
+export const ciStatusEnum = pgEnum('ci_status', ['queued', 'in_progress', 'completed'])
+export const ciConclusionEnum = pgEnum('ci_conclusion', [
+  'success',
+  'failure',
+  'neutral',
+  'cancelled',
+  'timed_out',
+])
+
+export const ciRuns = pgTable(
+  'ci_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    realm_id: uuid('realm_id')
+      .notNull()
+      .references(() => realms.id),
+    repo_full_name: text('repo_full_name').notNull(),
+    head_sha: text('head_sha').notNull(),
+    name: text('name').notNull(),
+    status: ciStatusEnum('status').notNull().default('queued'),
+    conclusion: ciConclusionEnum('conclusion'),
+    started_at: timestamp('started_at', { withTimezone: true }),
+    completed_at: timestamp('completed_at', { withTimezone: true }),
+    html_url: text('html_url'),
+    details_url: text('details_url'),
+    pr_number: integer('pr_number'),
+  },
+  (t) => [
+    index('ci_runs_realm_idx').on(t.realm_id),
+    index('ci_runs_sha_idx').on(t.realm_id, t.head_sha),
+    index('ci_runs_pr_idx').on(t.realm_id, t.pr_number),
+  ],
+)
