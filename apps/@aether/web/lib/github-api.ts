@@ -12,12 +12,33 @@ export interface RepoFileEntry {
   size?: number
 }
 
+export interface BranchInfo {
+  name: string
+  sha: string
+}
+
+export interface CommitResult {
+  sha: string
+}
+
 export interface GithubApi {
   client: GithubClient
   /** 列出仓库文件树（recursive） */
   listRepoTree(repoFullName: string, branch: string): Promise<RepoFileEntry[]>
   /** 读取文件内容（文本，base64 自动解码） */
   readRepoFile(repoFullName: string, branch: string, path: string): Promise<string>
+  /** 列出仓库分支 */
+  listBranches(repoFullName: string): Promise<BranchInfo[]>
+  /** 从指定分支创建新分支 */
+  createBranch(repoFullName: string, fromBranch: string, newBranch: string): Promise<BranchInfo>
+  /** 提交单文件到指定分支（6 步 GitHub API 流程） */
+  createCommit(
+    repoFullName: string,
+    branch: string,
+    path: string,
+    content: string,
+    message: string,
+  ): Promise<CommitResult>
 }
 
 /**
@@ -62,6 +83,92 @@ export function createGithubApi(realmId: string): GithubApi {
         return Buffer.from(data.content, 'base64').toString('utf-8')
       }
       return data.content
+    },
+    async listBranches(repoFullName) {
+      const data = await client.request<
+        Array<{ name: string; commit: { sha: string } }>
+      >(`/repos/${repoFullName}/branches?per_page=100`)
+      return data.map((b) => ({ name: b.name, sha: b.commit.sha }))
+    },
+    async createBranch(repoFullName, fromBranch, newBranch) {
+      const refData = await client.request<{
+        object: { sha: string }
+      }>(`/repos/${repoFullName}/git/refs/heads/${encodeURIComponent(fromBranch)}`)
+      const created = await client.request<{
+        object: { sha: string }
+      }>(`/repos/${repoFullName}/git/refs`, {
+        method: 'POST',
+        body: {
+          ref: `refs/heads/${newBranch}`,
+          sha: refData.object.sha,
+        },
+      })
+      return { name: newBranch, sha: created.object.sha }
+    },
+    async createCommit(repoFullName, branch, path, content, message) {
+      // 1. 获取当前分支 ref 的 commit SHA
+      const refData = await client.request<{
+        object: { sha: string }
+      }>(`/repos/${repoFullName}/git/refs/heads/${encodeURIComponent(branch)}`)
+      const parentSha = refData.object.sha
+
+      // 2. 获取该 commit 的 tree SHA
+      const commitData = await client.request<{
+        tree: { sha: string }
+      }>(`/repos/${repoFullName}/git/commits/${parentSha}`)
+      const baseTreeSha = commitData.tree.sha
+
+      // 3. 创建新 blob（文件内容 utf-8）
+      const blobData = await client.request<{ sha: string }>(
+        `/repos/${repoFullName}/git/blobs`,
+        {
+          method: 'POST',
+          body: { content, encoding: 'utf-8' },
+        },
+      )
+
+      // 4. 创建新 tree（基于旧 tree，替换目标文件）
+      const treeData = await client.request<{ sha: string }>(
+        `/repos/${repoFullName}/git/trees`,
+        {
+          method: 'POST',
+          body: {
+            base_tree: baseTreeSha,
+            tree: [
+              {
+                path,
+                mode: '100644',
+                type: 'blob',
+                sha: blobData.sha,
+              },
+            ],
+          },
+        },
+      )
+
+      // 5. 创建新 commit
+      const newCommitData = await client.request<{ sha: string }>(
+        `/repos/${repoFullName}/git/commits`,
+        {
+          method: 'POST',
+          body: {
+            message,
+            tree: treeData.sha,
+            parents: [parentSha],
+          },
+        },
+      )
+
+      // 6. 更新分支 ref 指向新 commit
+      await client.request(
+        `/repos/${repoFullName}/git/refs/heads/${encodeURIComponent(branch)}`,
+        {
+          method: 'PATCH',
+          body: { sha: newCommitData.sha },
+        },
+      )
+
+      return { sha: newCommitData.sha }
     },
   }
 }

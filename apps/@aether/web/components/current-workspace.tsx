@@ -18,6 +18,8 @@ import type { RealmActorRow } from '@/lib/entities'
 import type { AuditRow } from '@/lib/audit'
 import { createThread, type ThreadRow } from '@/lib/threads'
 import { listRepoTree, readRepoFile } from '@/lib/git-actions'
+import { GitBranchSelector } from '@/components/git-branch-selector'
+import { GitCommitBar } from '@/components/git-commit-bar'
 import {
   EntityAvatar,
   HandoffIndicator,
@@ -97,6 +99,7 @@ export default function CurrentWorkspace({
 }: CurrentWorkspaceProps) {
   const [activePath, setActivePath] = useState<string>(FALLBACK_FILES[0]?.path ?? 'README.md')
   const [files, setFiles] = useState<WorkspaceFile[]>(FALLBACK_FILES)
+  const [branch, setBranch] = useState<string>('main')
   const [selection, setSelection] = useState<SelectionInfo | null>(null)
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [activeThreadTitle, setActiveThreadTitle] = useState<string>('')
@@ -107,7 +110,7 @@ export default function CurrentWorkspace({
   // 从 GitHub 仓库拉取真实文件树；无集成时回退到 FALLBACK_FILES
   useEffect(() => {
     let cancelled = false
-    void listRepoTree(realmId).then((result) => {
+    void listRepoTree(realmId, branch).then((result) => {
       if (cancelled) return
       if (result.success && result.data) {
         const blobs = result.data
@@ -117,32 +120,65 @@ export default function CurrentWorkspace({
       }
     })
     return () => { cancelled = true }
-  }, [realmId])
+  }, [realmId, branch])
 
-  // 监听 editor-host iframe 的内容请求，通过 GitHub API 读取文件内容后回传
+  // 监听 editor-host iframe 消息：内容请求（种子）+ 保存回传（提交）
+  const saveResolveRef = useRef<((content: string) => void) | null>(null)
+
   const handleEditorMessage = useCallback(
     (e: MessageEvent) => {
       const data: unknown = e.data
       if (typeof data !== 'object' || data === null) return
       const msg = data as Record<string, unknown>
-      if (msg.type !== 'aether:editor-request-content') return
-      if (typeof msg.path !== 'string') return
-      void readRepoFile(realmId, msg.path).then((result) => {
-        if (result.success && result.data !== null) {
-          iframeRef.current?.contentWindow?.postMessage(
-            { type: 'aether:editor-content', path: msg.path, content: result.data },
-            '*',
-          )
-        }
-      })
+
+      // editor-host 请求文件内容（种子机制）
+      if (msg.type === 'aether:editor-request-content') {
+        if (typeof msg.path !== 'string') return
+        void readRepoFile(realmId, msg.path, branch).then((result) => {
+          if (result.success && result.data !== null) {
+            iframeRef.current?.contentWindow?.postMessage(
+              { type: 'aether:editor-content', path: msg.path, content: result.data },
+              '*',
+            )
+          }
+        })
+        return
+      }
+
+      // editor-host 回传保存内容（提交时用）
+      if (msg.type === 'aether:editor-save') {
+        if (typeof msg.content !== 'string') return
+        saveResolveRef.current?.(msg.content)
+        saveResolveRef.current = null
+      }
     },
-    [realmId],
+    [realmId, branch],
   )
 
   useEffect(() => {
     window.addEventListener('message', handleEditorMessage)
     return () => window.removeEventListener('message', handleEditorMessage)
   }, [handleEditorMessage])
+
+  /** 向 editor-host iframe 请求当前文本内容（提交时用），5s 超时返回 null */
+  const requestEditorSave = useCallback((): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        saveResolveRef.current = null
+        resolve(null)
+      }, 5000)
+
+      saveResolveRef.current = (content: string) => {
+        clearTimeout(timer)
+        resolve(content)
+      }
+
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'aether:editor-request-save' },
+        '*',
+      )
+    })
+  }, [])
 
   // Entity 信息（对话视图用）
   const activeEntity = actors.find((a) => a.kind === 'entity') ?? null
@@ -204,6 +240,7 @@ export default function CurrentWorkspace({
         {/* 中：Editor (iframe 嵌入独立部署的 editor-host) */}
         <section className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-neutral-1 px-4">
+            <GitBranchSelector realmId={realmId} currentBranch={branch} onBranchChange={setBranch} />
             <span className="truncate font-mono text-label-12 text-neutral-7">
               {activePath}
             </span>
@@ -214,6 +251,12 @@ export default function CurrentWorkspace({
               {realmName}
             </span>
           </header>
+          <GitCommitBar
+            realmId={realmId}
+            activePath={activePath}
+            branch={branch}
+            requestEditorSave={requestEditorSave}
+          />
           <div className="min-h-0 flex-1 overflow-hidden bg-neutral-1">
             {/* iframe 加载独立部署的 editor-host 应用 */}
             <iframe

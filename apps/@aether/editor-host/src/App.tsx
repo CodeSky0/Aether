@@ -85,7 +85,7 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [connectionState, context.filePath])
 
-  // 监听 parent 返回的文件内容并注入（仅在文本为空时，避免覆盖协同内容）
+  // 监听 parent 消息：种子内容注入 + 保存请求回传
   useEffect(() => {
     if (window.parent === window) return
 
@@ -93,11 +93,25 @@ export default function App() {
       const data: unknown = e.data
       if (typeof data !== 'object' || data === null) return
       const msg = data as Record<string, unknown>
-      if (msg.type !== 'aether:editor-content') return
-      if (msg.path !== context.filePath) return
-      if (typeof msg.content !== 'string') return
-      if (editorTextRef.current.length === 0) {
-        editorSetTextRef.current(msg.content)
+
+      // 种子内容注入
+      if (msg.type === 'aether:editor-content') {
+        if (msg.path !== context.filePath) return
+        if (typeof msg.content !== 'string') return
+        if (editorTextRef.current.length === 0) {
+          editorSetTextRef.current(msg.content)
+        }
+        return
+      }
+
+      // 保存请求：回传当前文本内容供 web 端提交到 GitHub
+      if (msg.type === 'aether:editor-request-save') {
+        if (window.parent !== window) {
+          window.parent.postMessage(
+            { type: 'aether:editor-save', path: context.filePath, content: editorTextRef.current },
+            '*',
+          )
+        }
       }
     }
 
